@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef _F_SPIFLASH_VERILATOR_SPI_INTERFACE_H__
-#define _F_SPIFLASH_VERILATOR_SPI_INTERFACE_H__
+#ifndef OPENTITAN_SW_HOST_SPIFLASH_VERILATOR_SPI_INTERFACE_H_
+#define OPENTITAN_SW_HOST_SPIFLASH_VERILATOR_SPI_INTERFACE_H_
 
 #include <string>
 
@@ -19,7 +19,7 @@ namespace spiflash {
 // This class is not thread safe.
 class VerilatorSpiInterface : public SpiInterface {
  public:
-  // Constructs instance pointing to the |spi_filename| file path.
+  // Constructs instance pointing to the `spi_filename` file path.
   explicit VerilatorSpiInterface(std::string spi_filename)
       : spi_filename_(spi_filename), fd_(-1) {}
 
@@ -29,9 +29,10 @@ class VerilatorSpiInterface : public SpiInterface {
   // Initialize interface.
   bool Init() final;
 
-  // Transmit bytes from |tx| buffer and read data back onto |rx| buffer. The
-  // number of bytes are defined by |size|.
-  bool TransmitFrame(const uint8_t *tx, uint8_t *rx, size_t size) final;
+  // Transmit bytes from `tx` buffer. The number of bytes are defined by `size`.
+  bool TransmitFrame(const uint8_t *tx, size_t size) final;
+
+  bool CheckHash(const uint8_t *tx, size_t size) final;
 
  private:
   std::string spi_filename_;
@@ -41,4 +42,4 @@ class VerilatorSpiInterface : public SpiInterface {
 }  // namespace spiflash
 }  // namespace opentitan
 
-#endif  // _F_SPIFLASH_VERILATOR_SPI_INTERFACE_H__
+#endif  // OPENTITAN_SW_HOST_SPIFLASH_VERILATOR_SPI_INTERFACE_H_

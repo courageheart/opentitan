@@ -4,11 +4,12 @@
 
 #include "sw/device/lib/spi_device.h"
 
+#include "hw/top_earlgrey/sw/autogen/top_earlgrey.h"
 #include "spi_device_regs.h"  // Generated.
 
 #include "sw/device/lib/common.h"
 
-#define SPI_DEVICE0_BASE_ADDR 0x40020000
+#define SPI_DEVICE0_BASE_ADDR TOP_EARLGREY_SPI_DEVICE_BASE_ADDR
 #define SPID_SRAM_ADDR SPI_DEVICE_BUFFER(0)
 #define SPID_RXF_BASE 0x000
 #define SPID_RXF_SIZE 0x400
@@ -59,11 +60,10 @@ void spid_init(void) {
  * Fifo pointers are in bytes
  */
 inline uint32_t calc_depth(uint32_t wptr, uint32_t rptr, uint32_t size) {
-  const uint32_t sram_szw = BITLENGTH(SPI_DEVICE_BUFFER_SIZE_BYTES - 1);
   uint32_t depth;
   uint32_t wptr_phase, rptr_phase, wptr_v, rptr_v;
-  wptr_phase = wptr >> sram_szw;
-  rptr_phase = rptr >> sram_szw;
+  wptr_phase = wptr & SPI_DEVICE_BUFFER_SIZE_BYTES;
+  rptr_phase = rptr & SPI_DEVICE_BUFFER_SIZE_BYTES;
   wptr_v = wptr & (SPI_DEVICE_BUFFER_SIZE_BYTES - 1);
   rptr_v = rptr & (SPI_DEVICE_BUFFER_SIZE_BYTES - 1);
 

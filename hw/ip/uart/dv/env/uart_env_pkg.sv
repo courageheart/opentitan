@@ -12,6 +12,7 @@ package uart_env_pkg;
   import uart_agent_pkg::*;
   import dv_lib_pkg::*;
   import cip_base_pkg::*;
+  import uart_ral_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
@@ -25,7 +26,7 @@ package uart_env_pkg;
   typedef enum int {
     TxWatermark = 0,
     RxWatermark = 1,
-    TxOverflow  = 2,
+    TxEmpty     = 2,
     RxOverflow  = 3,
     RxFrameErr  = 4,
     RxBreakErr  = 5,
@@ -35,9 +36,9 @@ package uart_env_pkg;
   } uart_intr_e;
 
   // get the number of bytes that triggers watermark interrupt
-  function automatic int get_watermark_bytes_by_level(int lvl);
+  function automatic int get_watermark_bytes_by_level(int lvl, uart_dir_e dir);
     case(lvl)
-      0: return 1;
+      0: return dir == UartTx ? 2 : 1;
       1: return 4;
       2: return 8;
       3: return 16;
@@ -89,7 +90,6 @@ package uart_env_pkg;
   `define RX_IGNORED_PERIOD {1}
 
   // package sources
-  `include "uart_reg_block.sv"
   `include "uart_env_cfg.sv"
   `include "uart_env_cov.sv"
   `include "uart_virtual_sequencer.sv"

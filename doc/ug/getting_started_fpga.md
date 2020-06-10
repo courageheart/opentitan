@@ -2,10 +2,10 @@
 title: "Getting started on FPGAs"
 ---
 
-# Getting started on FPGAs
-
 Do you want to try out the lowRISC chip designs, but don't have a couple thousand or million dollars ready for an ASIC tapeout?
 Running lowRISC designs on an FPGA board can be the answer!
+
+<!-- TODO: Switch all calls to fusesoc and the Verilated system to refer to Meson, once it supports fusesoc. -->
 
 ## Prerequisites
 
@@ -32,17 +32,17 @@ This is pulled in from the `sw/device/boot_rom` directory (see the `parameters:`
 To build it:
 ```console
 $ cd $REPO_TOP
-$ make -C sw/device SW_DIR=boot_rom clean all
+$ ./meson_init.sh
+$ ninja -C build-out sw/device/boot_rom/boot_rom_export_fpga_nexysvideo
 ```
-
-At the moment there is no check that the `rom.vmem` file is up to date, so it is best to follow the instructions to [Build software]({{< relref "getting_started_sw.md" >}}) and understand the FPGA's overall software flow.
 
 In the following example we synthesize the Earl Grey design for the Nexys Video board using Xilinx Vivado 2018.3.
 
 ```console
 $ . /tools/xilinx/Vivado/2018.3/settings64.sh
 $ cd $REPO_TOP
-$ make -C sw/device SW_DIR=boot_rom clean all
+$ ./meson_init.sh
+$ ninja -C build-out sw/device/boot_rom/boot_rom_export_fpga_nexysvideo
 $ fusesoc --cores-root . run --target=synth lowrisc:systems:top_earlgrey_nexysvideo
 ```
 
@@ -68,6 +68,15 @@ Use the following command to program the FPGA with fusesoc.
 $ . /tools/xilinx/Vivado/2018.3/settings64.sh
 $ cd $REPO_TOP
 $ fusesoc --cores-root . pgm lowrisc:systems:top_earlgrey_nexysvideo:0.1
+```
+
+This should produce a message like this from the UART:
+
+```
+Version:    opentitan-snapshot-20191101-1-366-gca61d28
+Build Date: 2019-12-13, 13:15:48
+Bootstrap requested, initialising HW...
+HW initialisation completed, waiting for SPI input...
 ```
 
 Note: `fusesoc pgm` is broken for edalize versions up to (and including) v0.1.3.
@@ -97,7 +106,7 @@ Now the Vivado GUI opens and loads the project.
 
 The `hello_world` demo software shows off some capabilities of the design.
 In order to load `hello_world` into the FPGA, both the binary and the [loading tool]({{< relref "/sw/host/spiflash/README.md" >}}) must be compiled.
-Please follow the steps below.
+Please follow the steps shown below.
 
 * Generate the bitstream and flash it to the FPGA as described above.
 * Open a serial console (use the device file determined before) and connect.
@@ -113,19 +122,44 @@ Please follow the steps below.
 * Run the loading tool.
   ```console
   $ cd ${REPO_TOP}
-  $ make -C sw/device SW_DIR=examples/hello_world SW_BUILD_DIR=out clean all
-  $ make -C sw/host/spiflash clean all
-  $ ./sw/host/spiflash/spiflash --input=sw/device/out/sw.bin
-
-  Running SPI flash update.
-  Image divided into 6 frames.
-  frame: 0x00000000 to offset: 0x00000000
-  frame: 0x00000001 to offset: 0x000003d8
-  frame: 0x00000002 to offset: 0x000007b0
-  frame: 0x00000003 to offset: 0x00000b88
-  frame: 0x00000004 to offset: 0x00000f60
-  frame: 0x80000005 to offset: 0x00001338
+  $ ./meson_init.sh
+  $ ninja -C build-out sw/device/examples/hello_world/hello_world_export_fpga_nexysvideo
+  $ ninja -C build-out sw/host/spiflash/spiflash_export
+  $ build-bin/sw/host/spiflash/spiflash --input build-bin/sw/device/examples/hello_world/hello_world_fpga_nexysvideo.bin
   ```
+
+  which should report how the binary is split into frames:
+
+  ```
+   Running SPI flash update.
+   Image divided into 6 frames.
+   frame: 0x00000000 to offset: 0x00000000
+   frame: 0x00000001 to offset: 0x000003d8
+   frame: 0x00000002 to offset: 0x000007b0
+   frame: 0x00000003 to offset: 0x00000b88
+   frame: 0x00000004 to offset: 0x00000f60
+   frame: 0x80000005 to offset: 0x00001338
+   ```
+
+  and then output like this should appear from the UART:
+  ```
+  Processing frame no: 00000000 exp no: 00000000
+  Processing frame no: 00000001 exp no: 00000001
+  Processing frame no: 00000002 exp no: 00000002
+  Processing frame no: 00000003 exp no: 00000003
+  Processing frame no: 00000004 exp no: 00000004
+  Processing frame no: 80000005 exp no: 00000005
+  bootstrap: DONE!
+  INFO: Boot ROM initialisation has completed, jump into flash!
+  Hello World! Dec 13 2019 15:06:29
+  Watch the LEDs!
+  Try out the switches on the board
+  or type anything into the console window.
+  The LEDs show the ASCII code of the last character.
+  GPIO: Switch 7 changed to 1
+  FTDI control changed. Enable JTAG
+  ```
+
 * Observe the output both on the board and the serial console. Type any text into the console window.
 * Exit `screen` by pressing CTRL-a k, and confirm with y.
 
@@ -151,6 +185,9 @@ $ cd $REPO_TOP
 $ /tools/openocd/bin/openocd -s util/openocd -f board/lowrisc-earlgrey-nexysvideo.cfg
 ```
 
+Note that you must use the [RISC-V fork of OpenOCD](https://github.com/riscv/riscv-openocd).
+See the [install instructions]({{< relref "install_instructions#openocd" >}}) for guidance on building OpenOCD.
+
 To actually debug through OpenOCD, it must either be connected through telnet or GDB.
 
 ### Debug with OpenOCD
@@ -170,10 +207,6 @@ An example connection with GDB, which prints the registers after the connection 
 $ cd $REPO_TOP
 $ /tools/riscv/bin/riscv32-unknown-elf-gdb -ex "target extended-remote :3333" -ex "info reg" sw/device/boot_rom/rom.elf
 ```
-
-Note that debug support is not yet mature (see https://github.com/lowRISC/opentitan/issues/574).
-In particular GDB cannot set breakpoints as it can't write to the (emulated) flash memory.
-HW breakpoint support is planned for Ibex to allow breakpointing code in flash.
 
 #### Common operations with GDB
 

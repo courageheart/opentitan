@@ -5,9 +5,12 @@
         Author : Shay Gal-On, EEMBC
         Legal : TODO!
 */
-#include "core_portme.h"
+#include "sw/device/benchmarks/coremark/top_earlgrey/core_portme.h"
 
-#include "coremark.h"
+#include "sw/device/lib/arch/device.h"
+#include "sw/device/lib/base/stdasm.h"
+#include "sw/device/lib/testing/test_status.h"
+#include "sw/vendor/eembc_coremark/coremark.h"
 
 #if VALIDATION_RUN
 volatile ee_s32 seed1_volatile = 0x3415;
@@ -34,7 +37,7 @@ volatile ee_s32 seed5_volatile = 0;
 */
 CORETIMETYPE barebones_clock() {
   ee_u32 result;
-  __asm__ volatile("csrr %0, mcycle;" : "=r"(result));
+  asm volatile("csrr %0, mcycle;" : "=r"(result));
   return result;
 }
 /* Define : TIMER_RES_DIVIDER
@@ -105,7 +108,7 @@ ee_u32 default_num_contexts = 1;
         Test for some common mistakes.
 */
 void portable_init(core_portable *p, int *argc, char *argv[]) {
-  uart_init(UART_BAUD_RATE);
+  uart_init(kUartBaudrate);
 
   if (sizeof(ee_ptr_int) != sizeof(ee_u8 *)) {
     ee_printf(
@@ -119,4 +122,7 @@ void portable_init(core_portable *p, int *argc, char *argv[]) {
 /* Function : portable_fini
         Target specific final code
 */
-void portable_fini(core_portable *p) { p->portable_id = 0; }
+void portable_fini(core_portable *p) {
+  p->portable_id = 0;
+  test_status_set(kTestStatusPassed);
+}

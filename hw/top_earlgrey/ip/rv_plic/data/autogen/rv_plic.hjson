@@ -12,7 +12,7 @@
 //
 # RV_PLIC register template
 #
-# Parameter (given by python tool)
+# Parameter (given by Python tool)
 #  - src:    Number of Interrupt Sources
 #  - target: Number of Targets that handle interrupt requests
 #  - prio:   Max value of interrupt priorities
@@ -25,7 +25,7 @@
     { name: "NumSrc",
       desc: "Number of interrupt sources",
       type: "int",
-      default: "55",
+      default: "81",
       local: "true"
     },
     { name: "NumTarget",
@@ -47,6 +47,8 @@
         fields: [
           { bits: "0", name: "P", desc: "Interrupt Pending of Source" }
         ],
+        tags: [// IP is driven by intr_src, cannot auto-predict
+               "excl:CsrNonInitTests:CsrExclCheck"],
       }
     },
     { multireg: {
@@ -501,7 +503,215 @@
         { bits: "1:0" }
       ],
     }
-    { skipto: "256" }
+    { name: "PRIO55",
+      desc: "Interrupt Source 55 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO56",
+      desc: "Interrupt Source 56 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO57",
+      desc: "Interrupt Source 57 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO58",
+      desc: "Interrupt Source 58 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO59",
+      desc: "Interrupt Source 59 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO60",
+      desc: "Interrupt Source 60 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO61",
+      desc: "Interrupt Source 61 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO62",
+      desc: "Interrupt Source 62 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO63",
+      desc: "Interrupt Source 63 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO64",
+      desc: "Interrupt Source 64 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO65",
+      desc: "Interrupt Source 65 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO66",
+      desc: "Interrupt Source 66 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO67",
+      desc: "Interrupt Source 67 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO68",
+      desc: "Interrupt Source 68 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO69",
+      desc: "Interrupt Source 69 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO70",
+      desc: "Interrupt Source 70 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO71",
+      desc: "Interrupt Source 71 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO72",
+      desc: "Interrupt Source 72 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO73",
+      desc: "Interrupt Source 73 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO74",
+      desc: "Interrupt Source 74 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO75",
+      desc: "Interrupt Source 75 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO76",
+      desc: "Interrupt Source 76 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO77",
+      desc: "Interrupt Source 77 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO78",
+      desc: "Interrupt Source 78 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO79",
+      desc: "Interrupt Source 79 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { name: "PRIO80",
+      desc: "Interrupt Source 80 Priority",
+      swaccess: "rw",
+      hwaccess: "hro",
+      fields: [
+        { bits: "1:0" }
+      ],
+    }
+    { skipto: "512" }
     { multireg: {
         name: "IE0",
         desc: "Interrupt Enable for Target 0",
@@ -523,18 +733,22 @@
       ],
     }
     { name: "CC0",
-      desc: "Claim interrupt by read, complete interrupt by write for Target 0. Value read/written is interrupt ID. Reading a value of 0 means no pending interrupts.",
+      desc: '''Claim interrupt by read, complete interrupt by write for Target 0.
+      Value read/written is interrupt ID. Reading a value of 0 means no pending interrupts.''',
       swaccess: "rw",
       hwaccess: "hrw",
       hwext: "true",
       hwqe: "true",
       hwre: "true",
       fields: [
-        { bits: "5:0" }
+        { bits: "6:0" }
       ],
+      tags: [// CC register value is related to IP
+             "excl:CsrNonInitTests:CsrExclCheck"],
     }
     { name: "MSIP0",
-      desc: "msip for Hart 0. Write 1 to here asserts software interrupt for Hart msip_o[0], write 0 to clear",
+      desc: '''msip for Hart 0.
+      Write 1 to here asserts software interrupt for Hart msip_o[0], write 0 to clear.''',
       swaccess: "rw",
       hwaccess: "hro",
       fields: [

@@ -14,12 +14,14 @@ module tb;
   `include "dv_macros.svh"
 
   wire clk, rst_n;
+  wire devmode;
 % if is_cip:
 % if has_interrupts:
   wire [NUM_MAX_INTERRUPTS-1:0] interrupts;
 % endif
 % if has_alerts:
-  wire [NUM_MAX_ALERTS-1:0] alerts;
+  // TODO: change alert_names
+  list_of_alerts = {"alert_names"};
 % endif
 % endif
 
@@ -30,9 +32,10 @@ module tb;
   pins_if #(NUM_MAX_INTERRUPTS) intr_if(interrupts);
 % endif
 % if has_alerts:
-  pins_if #(NUM_MAX_ALERTS) alerts_if(alerts);
+  // TODO: declare alert interfaces according to the list_of_alerts
+  alert_if alert_names(.clk(clk), .rst_n(rst_n))
 % endif
-  pins_if #(1) devmode_if();
+  pins_if #(1) devmode_if(devmode);
   tl_if tl_if(.clk(clk), .rst_n(rst_n));
 % endif
 % for agent in env_agents:
@@ -46,8 +49,13 @@ module tb;
     .rst_ni               (rst_n      ),
 
     .tl_i                 (tl_if.h2d  ),
+% if has_alerts:
+    .tl_o                 (tl_if.d2h  ),
+    .alert_rx_i           (alert_names.alert_rx ),
+    .alert_tx_o           (alert_names.alert_tx )
+% else:
     .tl_o                 (tl_if.d2h  )
-
+% endif
 % else:
     .rst_ni               (rst_n      )
 
@@ -64,11 +72,11 @@ module tb;
     uvm_config_db#(intr_vif)::set(null, "*.env", "intr_vif", intr_if);
 % endif
 % if has_alerts:
-    uvm_config_db#(alerts_vif)::set(null, "*.env", "alerts_vif", alerts_if);
+  // TODO: set alert interfaces with the correct names
+  uvm_config_db#(virtual alert_if)::set(null, "*.env.m_alert_agent_alert_names",
+        "vif", alert_names);
 % endif
     uvm_config_db#(devmode_vif)::set(null, "*.env", "devmode_vif", devmode_if);
-    uvm_config_db#(tlul_assert_ctrl_vif)::set(null, "*.env", "tlul_assert_ctrl_vif",
-        dut.tlul_assert_device.tlul_assert_ctrl_if);
     uvm_config_db#(virtual tl_if)::set(null, "*.env.m_tl_agent*", "vif", tl_if);
 % endif
 % for agent in env_agents:

@@ -12,15 +12,6 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
   // number of iterations to run the test seq - please override constraint in extended vseq
   // randomization for this is disabled in pre_start since we don't want to re-randomize it again
   rand uint num_trans;
-  rand uint delay;
-  constraint delay_c {
-    delay dist {
-        0                   :/ 1,
-        [1      :100]       :/ 1,
-        [101    :10_000]    :/ 8,
-        [10_001 :1_000_000] :/ 1
-    };
-  }
 
   constraint num_trans_c {
     num_trans inside {[1:20]};
@@ -38,6 +29,11 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
 
   // knobs to enable post_start routines
   bit do_dut_shutdown   = 1'b1;
+
+  // various knobs to enable certain routines
+  // this knob allows user to disable assertions in csr_hw_reset before random write sequence,
+  // the assertions will turn back on after the hw reset deasserted
+  bit enable_asserts_in_hw_reset_rand_wr  = 1'b1;
 
   `uvm_object_new
 
@@ -71,18 +67,24 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
 
   virtual task apply_reset(string kind = "HARD");
     if (kind == "HARD") begin
-      csr_utils_pkg::reset_occurred();
+      csr_utils_pkg::reset_asserted();
       cfg.clk_rst_vif.apply_reset();
-      csr_utils_pkg::reset_cleared();
+      csr_utils_pkg::reset_deasserted();
     end
     if (cfg.has_ral) ral.reset(kind);
   endtask
 
-  virtual task wait_for_reset(string reset_kind = "HARD");
-    `uvm_info(`gfn, "waiting for rst_n assertion...", UVM_MEDIUM)
-    @(negedge cfg.clk_rst_vif.rst_n);
-    `uvm_info(`gfn, "waiting for rst_n de-assertion...", UVM_MEDIUM)
-    @(posedge cfg.clk_rst_vif.rst_n);
+  virtual task wait_for_reset(string reset_kind     = "HARD",
+                              bit wait_for_assert   = 1,
+                              bit wait_for_deassert = 1);
+    if (wait_for_assert) begin
+      `uvm_info(`gfn, "waiting for rst_n assertion...", UVM_MEDIUM)
+      @(negedge cfg.clk_rst_vif.rst_n);
+    end
+    if (wait_for_deassert) begin
+      `uvm_info(`gfn, "waiting for rst_n de-assertion...", UVM_MEDIUM)
+      @(posedge cfg.clk_rst_vif.rst_n);
+    end
     `uvm_info(`gfn, "wait_for_reset done", UVM_HIGH)
   endtask
 
@@ -100,7 +102,14 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
   virtual function void add_csr_exclusions(string           csr_test_type,
                                            csr_excl_item    csr_excl,
                                            string           scope = "ral");
-    `uvm_fatal(`gfn, "this method is not supposed to be called directly!")
+    `uvm_info(`gfn, "no exclusion item added from this function", UVM_DEBUG)
+  endfunction
+
+  // TODO: temp support, can delete this once all IPs update their exclusion in hjson
+  virtual function csr_excl_item add_and_return_csr_excl(string csr_test_type);
+    add_csr_exclusions(csr_test_type, ral.csr_excl);
+    ral.csr_excl.print_exclusions();
+    return ral.csr_excl;
   endfunction
 
   // wrapper task around run_csr_vseq - the purpose is to be able to call this directly for actual
@@ -116,10 +125,8 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
     // get csr_test_type from plusarg
     void'($value$plusargs("csr_%0s", csr_test_type));
 
-    // add csr exclusions before running the csr seq
-    csr_excl = csr_excl_item::type_id::create("csr_excl");
-    add_csr_exclusions(csr_test_type, csr_excl);
-    csr_excl.print_exclusions();
+    // create csr exclusions before running the csr seq
+    csr_excl = add_and_return_csr_excl(csr_test_type);
 
     // run the csr seq
     for (int i = 1; i <= num_times; i++) begin
@@ -136,7 +143,8 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
   // plusarg, provide ability to set a random number of csrs to test from higher level sequence
   virtual task run_csr_vseq(string          csr_test_type = "",
                             csr_excl_item   csr_excl = null,
-                            int             num_test_csrs = 0);
+                            int             num_test_csrs = 0,
+                            bit             do_rand_wr_and_reset = 1);
     csr_base_seq  m_csr_seq;
 
     // env needs to have a ral instance
@@ -153,7 +161,7 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
     endcase
 
     // if hw_reset test, then write all CSRs first and reset the whole dut
-    if (csr_test_type == "hw_reset") begin
+    if (csr_test_type == "hw_reset" && do_rand_wr_and_reset) begin
       string        reset_type = "HARD";
       csr_write_seq m_csr_write_seq;
 
@@ -162,14 +170,15 @@ class dv_base_vseq #(type RAL_T               = dv_base_reg_block,
       m_csr_write_seq.models.push_back(ral);
       m_csr_write_seq.set_csr_excl_item(csr_excl);
       m_csr_write_seq.external_checker = cfg.en_scb;
+      if (!enable_asserts_in_hw_reset_rand_wr) $assertoff;
       m_csr_write_seq.start(null);
 
       // run dut_shutdown before asserting reset
       dut_shutdown();
-
       // issue reset
       void'($value$plusargs("do_reset=%0s", reset_type));
       dut_init(reset_type);
+      if (!enable_asserts_in_hw_reset_rand_wr) $asserton;
     end
 
     // create base csr seq and pass our ral

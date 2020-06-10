@@ -19,9 +19,9 @@ applicable. Once done, remove this comment before making a PR. -->
   * Verify TileLink device protocol compliance with an SVA based testbench
 
 ## Current status
-* [Design & verification stage]({{< relref "doc/project/hw_dashboard" >}})
-  * [HW development stages]({{< relref "doc/project/hw_stages.md" >}})
-* DV regression results dashboard (link TBD)
+* [Design & verification stage]({{< relref "hw" >}})
+  * [HW development stages]({{< relref "doc/project/development_stages.md" >}})
+* [Simulation results](https://reports.opentitan.org/hw/ip/foo/dv/latest/results.html)
 
 ## Design features
 <!-- TODO: uncomment link to the spec below -->
@@ -36,12 +36,12 @@ FOO testbench has been constructed based on the [CIP testbench architecture]({{<
 ### Top level testbench
 Top level testbench is located at `hw/ip/foo/dv/tb/tb.sv`. It instantiates the FOO DUT module `hw/ip/foo/rtl/foo.sv`.
 In addition, it instantiates the following interfaces and sets their handle into `uvm_config_db`:
-* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs/README" >}})
+* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs" >}})
 * [TileLink host interface]({{< relref "hw/dv/sv/tl_agent/README.md" >}})
 * FOO IOs
-* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
-* Alerts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
-* Devmode ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
+* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
+* Alerts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
+* Devmode ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
 
 ### Common DV utility components
 The following utilities provide generic helper tasks and functions to perform activities that are common across the project:
@@ -68,8 +68,10 @@ TL host interface into FOO device.
 ### UVC/agent 2
 [Describe here or add link to its README]
 
-### RAL
-The FOO RAL model is constructed using the [regtool.py script]({{< relref "util/reggen/README.md" >}}) and is placed at `env/foo_reg_block.sv`.
+### UVM RAL Model
+The FOO RAL model is created with the [`ralgen`]({{< relref "hw/dv/tools/ralgen/README.md" >}}) FuseSoC generator script automatically when the simulation is at the build stage.
+
+It can be created manually (separately) by running `make` in the the `hw/` area.
 
 ### Reference models
 [Describe reference models in use if applicable, example: SHA256/HMAC]

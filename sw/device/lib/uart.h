@@ -2,14 +2,13 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef _UART_H_
-#define _UART_H_
+#ifndef OPENTITAN_SW_DEVICE_LIB_UART_H_
+#define OPENTITAN_SW_DEVICE_LIB_UART_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
-#define UART0_BASE_ADDR 0x40000000
-
-#include "uart_regs.h"  // Generated.
+#include "sw/device/lib/base/print.h"
 
 void uart_send_char(char c);
 
@@ -23,9 +22,8 @@ void uart_init(unsigned int baud);
  * Send a NULL-terminated string over UART
  */
 void uart_send_str(char *str);
-int uart_rx_empty(void);
-int uart_tx_empty(void);
-int uart_tx_idle(void);
+
+extern const buffer_sink_t uart_stdout;
 
 /**
  * Receive a single character from UART
@@ -35,4 +33,4 @@ int uart_tx_idle(void);
  */
 int uart_rcv_char(char *c);
 
-#endif
+#endif  // OPENTITAN_SW_DEVICE_LIB_UART_H_

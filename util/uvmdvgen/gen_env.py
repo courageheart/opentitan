@@ -10,13 +10,13 @@ from mako.template import Template
 from pkg_resources import resource_filename
 
 
-def gen_env(name, is_cip, has_interrupts, has_alerts, env_agents, root_dir):
+def gen_env(name, is_cip, has_ral, has_interrupts, has_alerts, env_agents,
+            root_dir, add_makefile):
     # yapf: disable
     # 4-tuple - sub-path, ip name, class name, file ext
     env_srcs = [('dv/env',          name + '_', 'env_cfg',            '.sv'),
                 ('dv/env',          name + '_', 'env_cov',            '.sv'),
                 ('dv/env',          name + '_', 'env_pkg',            '.sv'),
-                ('dv/env',          name + '_', 'reg_block',          '.sv'),
                 ('dv/env',          name + '_', 'scoreboard',         '.sv'),
                 ('dv/env',          name + '_', 'virtual_sequencer',  '.sv'),
                 ('dv/env',          name + '_', 'env',                '.sv'),
@@ -32,7 +32,9 @@ def gen_env(name, is_cip, has_interrupts, has_alerts, env_agents, root_dir):
                 ('dv/tests',        name + '_', 'test',               '.core'),
                 ('dv/cov',          '',         '',                   ''),
                 ('dv',              '',         'Makefile',           ''),
-                ('doc',             name + '_', 'dv_plan',            '.md'),
+                ('dv',              name + '_', 'sim_cfg',            '.hjson'),
+                ('doc/dv_plan',     '',         'index',              '.md'),
+                ('doc',             '',         'checklist',          '.md'),
                 ('data',            name + '_', 'testplan',           '.hjson'),
                 ('dv',              name + '_', 'sim',                '.core')]
     # yapf: enable
@@ -43,21 +45,29 @@ def gen_env(name, is_cip, has_interrupts, has_alerts, env_agents, root_dir):
         src = tup[2]
         src_suffix = tup[3]
 
+        # Skip Makefile
+        if src == 'Makefile' and not add_makefile: continue
+
         ftpl = src + src_suffix + '.tpl'
-        fname = src_prefix + src + src_suffix
+        file_name = src_prefix + src + src_suffix
 
         if not os.path.exists(path_dir): os.system("mkdir -p " + path_dir)
-        if fname == "": continue
+        if file_name == "": continue
+
+        # Skip the checklist if it already exists.
+        file_path = os.path.join(path_dir, file_name)
+        if src == 'checklist' and os.path.exists(file_path): continue
 
         # read template
         tpl = Template(filename=resource_filename('uvmdvgen', ftpl))
 
         # create rendered file
-        with open(path_dir + "/" + fname, 'w') as fout:
+        with open(file_path, 'w') as fout:
             try:
                 fout.write(
                     tpl.render(name=name,
                                is_cip=is_cip,
+                               has_ral=has_ral,
                                has_interrupts=has_interrupts,
                                has_alerts=has_alerts,
                                env_agents=env_agents))

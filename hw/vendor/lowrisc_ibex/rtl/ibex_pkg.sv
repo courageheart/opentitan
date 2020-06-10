@@ -32,7 +32,7 @@ typedef enum logic [6:0] {
 // ALU operations //
 ////////////////////
 
-typedef enum logic [4:0] {
+typedef enum logic [5:0] {
   // Arithmetics
   ALU_ADD,
   ALU_SUB,
@@ -41,29 +41,95 @@ typedef enum logic [4:0] {
   ALU_XOR,
   ALU_OR,
   ALU_AND,
+  // RV32B
+  ALU_XNOR,
+  ALU_ORN,
+  ALU_ANDN,
 
   // Shifts
   ALU_SRA,
   ALU_SRL,
   ALU_SLL,
+  // RV32B
+  ALU_SRO,
+  ALU_SLO,
+  ALU_ROR,
+  ALU_ROL,
+  ALU_GREV,
+  ALU_GORC,
+  ALU_SHFL,
+  ALU_UNSHFL,
 
   // Comparisons
   ALU_LT,
   ALU_LTU,
-  ALU_LE,
-  ALU_LEU,
-  ALU_GT,
-  ALU_GTU,
   ALU_GE,
   ALU_GEU,
   ALU_EQ,
   ALU_NE,
+  // RV32B
+  ALU_MIN,
+  ALU_MINU,
+  ALU_MAX,
+  ALU_MAXU,
+
+  // Pack
+  // RV32B
+  ALU_PACK,
+  ALU_PACKU,
+  ALU_PACKH,
+
+  // Sign-Extend
+  // RV32B
+  ALU_SEXTB,
+  ALU_SEXTH,
+
+  // Bitcounting
+  // RV32B
+  ALU_CLZ,
+  ALU_CTZ,
+  ALU_PCNT,
 
   // Set lower than
   ALU_SLT,
   ALU_SLTU,
-  ALU_SLET,
-  ALU_SLETU
+
+  // Ternary Bitmanip Operations
+  // RV32B
+  ALU_CMOV,
+  ALU_CMIX,
+  ALU_FSL,
+  ALU_FSR,
+
+  // Single-Bit Operations
+  // RV32B
+  ALU_SBSET,
+  ALU_SBCLR,
+  ALU_SBINV,
+  ALU_SBEXT,
+
+  // Bit Extract / Deposit
+  // RV32B
+  ALU_BEXT,
+  ALU_BDEP,
+
+  // Bit Field Place
+  // RV32B
+  ALU_BFP,
+
+  // Carry-less Multiply
+  // RV32B
+  ALU_CLMUL,
+  ALU_CLMULR,
+  ALU_CLMULH,
+
+  // Cyclic Redundancy Check
+  ALU_CRC32_B,
+  ALU_CRC32C_B,
+  ALU_CRC32_H,
+  ALU_CRC32C_H,
+  ALU_CRC32_W,
+  ALU_CRC32C_W
 } alu_op_e;
 
 typedef enum logic [1:0] {
@@ -102,6 +168,16 @@ typedef enum logic[3:0] {
    XDEBUGVER_NONSTD = 4'd15 // debug not conforming to RISC-V debug spec
 } x_debug_ver_e;
 
+//////////////
+// WB stage //
+//////////////
+
+// Type of instruction present in writeback stage
+typedef enum logic[1:0] {
+  WB_INSTR_LOAD,  // Instruction is awaiting load data
+  WB_INSTR_STORE, // Instruction is awaiting store response
+  WB_INSTR_OTHER  // Instruction doesn't fit into above categories
+} wb_instr_type_e;
 
 //////////////
 // ID stage //
@@ -139,8 +215,7 @@ typedef enum logic [2:0] {
 } imm_b_sel_e;
 
 // Regfile write data selection
-typedef enum logic [1:0] {
-  RF_WD_LSU,
+typedef enum logic {
   RF_WD_EX,
   RF_WD_CSR
 } rf_wd_sel_e;
@@ -165,6 +240,15 @@ typedef enum logic [1:0] {
   EXC_PC_DBD,
   EXC_PC_DBG_EXC // Exception while in debug mode
 } exc_pc_sel_e;
+
+// Interrupt requests
+typedef struct packed {
+  logic        irq_software;
+  logic        irq_timer;
+  logic        irq_external;
+  logic [14:0] irq_fast; // 15 fast interrupts,
+                         // one interrupt is reserved for NMI (not visible through mip/mie)
+} irqs_t;
 
 // Exception cause
 typedef enum logic [5:0] {
@@ -263,6 +347,14 @@ typedef enum logic[11:0] {
   CSR_PMPADDR14 = 12'h3BE,
   CSR_PMPADDR15 = 12'h3BF,
 
+  // Debug trigger
+  CSR_TSELECT   = 12'h7A0,
+  CSR_TDATA1    = 12'h7A1,
+  CSR_TDATA2    = 12'h7A2,
+  CSR_TDATA3    = 12'h7A3,
+  CSR_MCONTEXT  = 12'h7A8,
+  CSR_SCONTEXT  = 12'h7AA,
+
   // Debug/trace
   CSR_DCSR      = 12'h7b0,
   CSR_DPC       = 12'h7b1,
@@ -272,22 +364,105 @@ typedef enum logic[11:0] {
   CSR_DSCRATCH1 = 12'h7b3, // optional
 
   // Machine Counter/Timers
-  CSR_MCOUNTINHIBIT      = 12'h320,
-  CSR_MCYCLE             = 12'hB00,
-  CSR_MCYCLEH            = 12'hB80,
-  CSR_MINSTRET           = 12'hB02,
-  CSR_MINSTRETH          = 12'hB82
+  CSR_MCOUNTINHIBIT  = 12'h320,
+  CSR_MHPMEVENT3     = 12'h323,
+  CSR_MHPMEVENT4     = 12'h324,
+  CSR_MHPMEVENT5     = 12'h325,
+  CSR_MHPMEVENT6     = 12'h326,
+  CSR_MHPMEVENT7     = 12'h327,
+  CSR_MHPMEVENT8     = 12'h328,
+  CSR_MHPMEVENT9     = 12'h329,
+  CSR_MHPMEVENT10    = 12'h32A,
+  CSR_MHPMEVENT11    = 12'h32B,
+  CSR_MHPMEVENT12    = 12'h32C,
+  CSR_MHPMEVENT13    = 12'h32D,
+  CSR_MHPMEVENT14    = 12'h32E,
+  CSR_MHPMEVENT15    = 12'h32F,
+  CSR_MHPMEVENT16    = 12'h330,
+  CSR_MHPMEVENT17    = 12'h331,
+  CSR_MHPMEVENT18    = 12'h332,
+  CSR_MHPMEVENT19    = 12'h333,
+  CSR_MHPMEVENT20    = 12'h334,
+  CSR_MHPMEVENT21    = 12'h335,
+  CSR_MHPMEVENT22    = 12'h336,
+  CSR_MHPMEVENT23    = 12'h337,
+  CSR_MHPMEVENT24    = 12'h338,
+  CSR_MHPMEVENT25    = 12'h339,
+  CSR_MHPMEVENT26    = 12'h33A,
+  CSR_MHPMEVENT27    = 12'h33B,
+  CSR_MHPMEVENT28    = 12'h33C,
+  CSR_MHPMEVENT29    = 12'h33D,
+  CSR_MHPMEVENT30    = 12'h33E,
+  CSR_MHPMEVENT31    = 12'h33F,
+  CSR_MCYCLE         = 12'hB00,
+  CSR_MINSTRET       = 12'hB02,
+  CSR_MHPMCOUNTER3   = 12'hB03,
+  CSR_MHPMCOUNTER4   = 12'hB04,
+  CSR_MHPMCOUNTER5   = 12'hB05,
+  CSR_MHPMCOUNTER6   = 12'hB06,
+  CSR_MHPMCOUNTER7   = 12'hB07,
+  CSR_MHPMCOUNTER8   = 12'hB08,
+  CSR_MHPMCOUNTER9   = 12'hB09,
+  CSR_MHPMCOUNTER10  = 12'hB0A,
+  CSR_MHPMCOUNTER11  = 12'hB0B,
+  CSR_MHPMCOUNTER12  = 12'hB0C,
+  CSR_MHPMCOUNTER13  = 12'hB0D,
+  CSR_MHPMCOUNTER14  = 12'hB0E,
+  CSR_MHPMCOUNTER15  = 12'hB0F,
+  CSR_MHPMCOUNTER16  = 12'hB10,
+  CSR_MHPMCOUNTER17  = 12'hB11,
+  CSR_MHPMCOUNTER18  = 12'hB12,
+  CSR_MHPMCOUNTER19  = 12'hB13,
+  CSR_MHPMCOUNTER20  = 12'hB14,
+  CSR_MHPMCOUNTER21  = 12'hB15,
+  CSR_MHPMCOUNTER22  = 12'hB16,
+  CSR_MHPMCOUNTER23  = 12'hB17,
+  CSR_MHPMCOUNTER24  = 12'hB18,
+  CSR_MHPMCOUNTER25  = 12'hB19,
+  CSR_MHPMCOUNTER26  = 12'hB1A,
+  CSR_MHPMCOUNTER27  = 12'hB1B,
+  CSR_MHPMCOUNTER28  = 12'hB1C,
+  CSR_MHPMCOUNTER29  = 12'hB1D,
+  CSR_MHPMCOUNTER30  = 12'hB1E,
+  CSR_MHPMCOUNTER31  = 12'hB1F,
+  CSR_MCYCLEH        = 12'hB80,
+  CSR_MINSTRETH      = 12'hB82,
+  CSR_MHPMCOUNTER3H  = 12'hB83,
+  CSR_MHPMCOUNTER4H  = 12'hB84,
+  CSR_MHPMCOUNTER5H  = 12'hB85,
+  CSR_MHPMCOUNTER6H  = 12'hB86,
+  CSR_MHPMCOUNTER7H  = 12'hB87,
+  CSR_MHPMCOUNTER8H  = 12'hB88,
+  CSR_MHPMCOUNTER9H  = 12'hB89,
+  CSR_MHPMCOUNTER10H = 12'hB8A,
+  CSR_MHPMCOUNTER11H = 12'hB8B,
+  CSR_MHPMCOUNTER12H = 12'hB8C,
+  CSR_MHPMCOUNTER13H = 12'hB8D,
+  CSR_MHPMCOUNTER14H = 12'hB8E,
+  CSR_MHPMCOUNTER15H = 12'hB8F,
+  CSR_MHPMCOUNTER16H = 12'hB90,
+  CSR_MHPMCOUNTER17H = 12'hB91,
+  CSR_MHPMCOUNTER18H = 12'hB92,
+  CSR_MHPMCOUNTER19H = 12'hB93,
+  CSR_MHPMCOUNTER20H = 12'hB94,
+  CSR_MHPMCOUNTER21H = 12'hB95,
+  CSR_MHPMCOUNTER22H = 12'hB96,
+  CSR_MHPMCOUNTER23H = 12'hB97,
+  CSR_MHPMCOUNTER24H = 12'hB98,
+  CSR_MHPMCOUNTER25H = 12'hB99,
+  CSR_MHPMCOUNTER26H = 12'hB9A,
+  CSR_MHPMCOUNTER27H = 12'hB9B,
+  CSR_MHPMCOUNTER28H = 12'hB9C,
+  CSR_MHPMCOUNTER29H = 12'hB9D,
+  CSR_MHPMCOUNTER30H = 12'hB9E,
+  CSR_MHPMCOUNTER31H = 12'hB9F,
+  CSR_CPUCTRL        = 12'h7C0,
+  CSR_SECURESEED     = 12'h7C1
 } csr_num_e;
 
 // CSR pmp-related offsets
 parameter logic [11:0] CSR_OFF_PMP_CFG  = 12'h3A0; // pmp_cfg  @ 12'h3a0 - 12'h3a3
 parameter logic [11:0] CSR_OFF_PMP_ADDR = 12'h3B0; // pmp_addr @ 12'h3b0 - 12'h3bf
-
-// CSR mhpmcounter-related offsets and mask
-parameter logic [11:0] CSR_OFF_MCOUNTER_SETUP = 12'h320; // mcounter_setup @ 12'h323 - 12'h33F
-parameter logic [11:0] CSR_OFF_MCOUNTER       = 12'hB00; // mcounter       @ 12'hB03 - 12'hB1F
-parameter logic [11:0] CSR_OFF_MCOUNTERH      = 12'hB80; // mcounterh      @ 12'hB83 - 12'hB9F
-parameter logic [11:0] CSR_MASK_MCOUNTER      = 12'hFE0;
 
 // CSR status bits
 parameter int unsigned CSR_MSTATUS_MIE_BIT      = 3;
@@ -296,6 +471,9 @@ parameter int unsigned CSR_MSTATUS_MPP_BIT_LOW  = 11;
 parameter int unsigned CSR_MSTATUS_MPP_BIT_HIGH = 12;
 parameter int unsigned CSR_MSTATUS_MPRV_BIT     = 17;
 parameter int unsigned CSR_MSTATUS_TW_BIT       = 21;
+
+// CSR machine ISA
+parameter logic [1:0] CSR_MISA_MXL = 2'd1; // M-XLEN: XLEN in M-Mode for RV32
 
 // CSR interrupt pending/enable bits
 parameter int unsigned CSR_MSIX_BIT      = 3;

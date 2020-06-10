@@ -6,14 +6,19 @@
 // all reset signals should be generated from one reset signal to not make any deadlock
 //
 // Interconnect
+<%
+  import tlgen.lib as lib
+%>\
 % for host in xbar.hosts:
 ${xbar.repr_tree(host, 0)}
 % endfor
 
 module xbar_${xbar.name} (
-% for clock in xbar.clocks:
-  input clk_${clock}_i,
-  input rst_${clock}_ni,
+% for c in xbar.clocks:
+  input ${c},
+% endfor
+% for r in xbar.resets:
+  input ${r},
 % endfor
 
   // Host interfaces
@@ -155,15 +160,34 @@ module xbar_${xbar.name} (
   leaf = xbar.get_leaf_from_s1n(block, loop.index);
   name_space = "ADDR_SPACE_" + leaf.name.upper();
   name_mask  = "ADDR_MASK_" + leaf.name.upper();
+  prefix = "if (" if loop.first else "end else if ("
 %>\
-  % if loop.first:
-    if ((${addr_sig} & ~(${name_mask})) == ${name_space}) begin
-  % else:
-    end else if ((${addr_sig} & ~(${name_mask})) == ${name_space}) begin
-  % endif
+  % if len(leaf.addr_range) == 1:
+      % if lib.is_pow2((leaf.addr_range[0][1]-leaf.addr_range[0][0])+1):
+    ${prefix}(${addr_sig} & ~(${name_mask})) == ${name_space}) begin
+      % else:
+    ${prefix}((${addr_sig} <= (${name_mask} + ${name_space})) &&
+       (${addr_sig} >= ${name_space}))) begin
+      % endif
       dev_sel_${block.name} = ${"%d'd%d" % (sel_len, loop.index)};
-  % if loop.last:
-    end
+${"end" if loop.last else ""}
+  % else:
+    ## Xbar device port
+<%
+  num_range = len(leaf.addr_range)
+%>\
+    ${prefix}
+    % for i in range(num_range):
+      % if lib.is_pow2(leaf.addr_range[i][1]-leaf.addr_range[0][0]+1):
+      ((${addr_sig} & ~(${name_mask}[${i}])) == ${name_space}[${i}])${" ||" if not loop.last else ""}
+      % else:
+      ((${addr_sig} <= (${name_mask}[${i}] + ${name_space}[${i}])) &&
+       (${addr_sig} >= ${name_space}[${i}]))${" ||" if not loop.last else ""}
+      % endif
+    % endfor
+    ) begin
+      dev_sel_${block.name} = ${"%d'd%d" % (sel_len, loop.index)};
+${"end" if loop.last else ""}
   % endif
 % endfor
   end
@@ -177,10 +201,10 @@ module xbar_${xbar.name} (
     .ReqDepth        (3),// At least 3 to make async work
     .RspDepth        (3) // At least 3 to make async work
   ) u_${block.name} (
-    .clk_h_i      (clk_${block.clocks[0]}_i),
-    .rst_h_ni     (rst_${block.clocks[0]}_ni),
-    .clk_d_i      (clk_${block.clocks[1]}_i),
-    .rst_d_ni     (rst_${block.clocks[1]}_ni),
+    .clk_h_i      (${block.clocks[0]}),
+    .rst_h_ni     (${block.resets[0]}),
+    .clk_d_i      (${block.clocks[1]}),
+    .rst_d_ni     (${block.resets[1]}),
     .tl_h_i       (tl_${block.name}_us_h2d),
     .tl_h_o       (tl_${block.name}_us_d2h),
     .tl_d_o       (tl_${block.name}_ds_h2d),
@@ -206,8 +230,8 @@ module xbar_${xbar.name} (
     % endif
     .N         (${len(block.ds)})
   ) u_${block.name} (
-    .clk_i        (clk_${xbar.clock}_i),
-    .rst_ni       (rst_${xbar.clock}_ni),
+    .clk_i        (${block.clocks[0]}),
+    .rst_ni       (${block.resets[0]}),
     .tl_h_i       (tl_${block.name}_us_h2d),
     .tl_h_o       (tl_${block.name}_us_d2h),
     .tl_d_o       (tl_${block.name}_ds_h2d),
@@ -234,8 +258,8 @@ module xbar_${xbar.name} (
     % endif
     .M         (${len(block.us)})
   ) u_${block.name} (
-    .clk_i        (clk_${xbar.clock}_i),
-    .rst_ni       (rst_${xbar.clock}_ni),
+    .clk_i        (${block.clocks[0]}),
+    .rst_ni       (${block.resets[0]}),
     .tl_h_i       (tl_${block.name}_us_h2d),
     .tl_h_o       (tl_${block.name}_us_d2h),
     .tl_d_o       (tl_${block.name}_ds_h2d),

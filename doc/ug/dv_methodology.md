@@ -15,13 +15,14 @@ The following are the key techniques used to perform design verification within 
 *  Formal Property Verification (FPV)
 
 For running dynamic simulations, the strategy is to use the [UVM1.2 methodology](https://www.accellera.org/downloads/standards/uvm) on top of a foundation of SystemVerilog based verification to develop constrained-random functional tests.
-Each DUT will include within the repo, a UVM testbench, a testplan, DV plan, a suite of tests, and a method to build, run tests and report the current status.
+Each DUT will include within the repository, a UVM testbench, a testplan, DV plan, a suite of tests, and a method to build, run tests and report the current status.
 For FPV, some DUTs may also include an SV testbench along with design properties captured in the SystemVerilog Assertions (SVA) language.
 As the project is still in development, the current status will not be completed for all IP, but that is the ultimate goal.
 See discussion below on tracking progress.
 
 For professional tooling, the team has chosen [Synopsys' VCS](https://www.synopsys.com/verification/simulation/vcs.html) as the simulator of choice with respect to the tracking of verification completeness and [JasperGold](https://www.cadence.com/content/cadence-www/global/en_US/home/tools/system-design-and-verification/formal-and-static-verification/jasper-gold-verification-platform.html) for FPV.
 Wherever possible we attempt to remain tool-agnostic, but we must choose a simulator as our ground truth for our own confidence of signoff-level assurances.
+Likewise, for FPV, [Synopsys VC Formal](https://www.synopsys.com/verification/static-and-formal-verification/vc-formal.html) is also supported within the same flow, and can be used by those with access to VC Formal licenses. 
 At this time there is also some support for Cadence's Xcelium, for those organizations which have few Synopsys VCS licenses.
 However support is not as mature as for VCS, which remains the tool for signoff.
 Furthermore, as a project we promote other open source verification methodologies - Verilator, Yosys, cocoTB, etc - and work towards a future where these are signoff-grade.
@@ -32,7 +33,7 @@ The discussions on how those are used within the program are carried out in a di
 Verification within the OpenTitan project comes in a variety of completion status levels.
 Some designs are "tapeout ready" while others are still a work in progress.
 Understanding the status of verification is important to gauge the confidence in the design's advertised feature set.
-To that end, we've designated a spectrum of design and verification stages in the  [OpenTitan Hardware Development Stages]({{< relref "hw_stages.md" >}}) document.
+To that end, we've designated a spectrum of design and verification stages in the  [OpenTitan Hardware Development Stages]({{< relref "doc/project/development_stages.md" >}}) document.
 It defines the verification stages and references where one can find the current verification status of each of the designs in the repository.
 Splitting the effort in such a way enables the team to pace the development effort and allows the progress to be in lock-step with the design stages.
 The list of tasks that are required to be completed to enable the effort to transition from one stage to the next is defined in the [checklists]({{< relref "doc/project/checklist" >}}) document.
@@ -43,7 +44,7 @@ We will explain some of the key items in those checklists in the remainder of th
 
 DV effort needs to be well documented to not only provide a detailed description of what tests are being planned, but also how the overall effort is strategized and implemented.
 The first is provided by the **testplan** document and the second, by the **DV plan** document.
-The [**project status**]({{< relref "hw_stages.md#indicating-stages-and-making-transitions" >}}) document tracks to progression of the effort through the stages.
+The [**project status**]({{< relref "doc/project/development_stages.md#indicating-stages-and-making-transitions" >}}) document tracks to progression of the effort through the stages.
 
 In addition to these documents, a nightly **regression dashboard** tabulating the test and coverage results will provide ability to track progress towards completion of the verification stages.
 
@@ -61,12 +62,13 @@ The complete testplan is parsed into a data structure that serves the following 
 *  Annotate the nightly regression results to allow us to track our progress towards executing the testplan
   *  this feature is not yet available and is [under active development](#pending-work-items)
 
-The [testplanner]({{< relref "util/testplanner/README.md" >}}) tool provides some additional information on the Hjson testplan anatomy and some of the features and constructs supported.
+The [testplanner]({{< relref "util/dvsim/testplanner/README.md" >}}) tool provides some additional information on the Hjson testplan anatomy and some of the features and constructs supported.
 The [build_docs]({{< relref "README.md#documentation" >}}) tool works in conjunction with the `testplanner` tool to enable its insertion into the DV plan as a table.
 
 ### DV Plan
 
-The DV plan document captures the overall strategy, intent, the testbench block diagram, a list of interfaces / agents, VIPs, reference models, the functional coverage model, assertions and checkers. It also covers FPV goals, if applicable. This is written in [markdown]({{< relref "doc/rm/markdown_usage_style" >}}) and is made available in the corresponding `doc` directory of each DUT.
+The DV plan document captures the overall strategy, intent, the testbench block diagram, a list of interfaces / agents, VIPs, reference models, the functional coverage model, assertions and checkers. It also covers FPV goals, if applicable.
+This is written in [Markdown]({{< relref "doc/rm/markdown_usage_style" >}}) and is made available in the corresponding `doc` directory of each DUT.
 
 A [template]({{< relref "hw/dv/doc/dv_plan_template" >}}) for the DV plan documentation as well as the testbench block diagram in the OpenTitan team drive  (under the 'design verification' directory) are available to help get started.
 
@@ -96,7 +98,7 @@ It can also be used to auto-generate the initial skeleton source code for buildi
 The UVM RAL model for DUTs containing CSRs is auto-generated using the [reggen]({{< relref "util/reggen/README.md" >}}) tool.
 The specification for capturing the CSRs in the Hjson format can be found in the [Register Tool]({{< relref "doc/rm/register_tool" >}}) documentation.
 We currently check-in the auto-generated UVM RAL model along with our UVM testbench code and rely on CI checks for consistency.
-In future, we may move to a flow where it is not checked into the repo, but auto-generated on-the-fly as a part of the simulation.
+In future, we may move to a flow where it is not checked into the repository, but auto-generated on-the-fly as a part of the simulation.
 
 ### Testbench Automation
 
@@ -131,7 +133,7 @@ The actual UVM testbenches for the Comportable IPs extend from this library as t
 In addition to the above library of classes, there are several common plug-and-play verification compoments (a.k.a. universal verification components or UVCs) provided for use in testbenches at `hw/dv/sv` location.
 A few examples of these are as follows:
 
-*  [Common interfaces]({{< relref "hw/dv/sv/common_ifs/README" >}})
+*  [Common interfaces]({{< relref "hw/dv/sv/common_ifs" >}})
 *  [DV utilities]({{< relref "hw/dv/sv/dv_utils/README" >}})
 *  [CSR utilities]({{< relref "hw/dv/sv/csr_utils/README" >}})
 *  [Device memory model]({{< relref "hw/dv/sv/mem_model/README" >}})
@@ -184,7 +186,7 @@ The chip DV plan, which is currently under active development will explain these
 When progressing through the verification stages, there are key focus areas or testing activities that are perhaps common across all DUTs.
 These are as follows.
 
-### Progressing towards [V1]({{< relref "hw_stages#hardware-verification-stages" >}})
+### Progressing towards [V1]({{< relref "doc/project/development_stages#hardware-verification-stages" >}})
 
 These set of tests (not exhaustive) provide the confidence that the design is ready for vertical integration.
 
@@ -201,7 +203,7 @@ This test (or set of tests) is also included as a part of the sanity regression 
 The very first set of real tests validate the SW interface laid out using the regtool.
 These prove that the SW interface is solid and all assumptions in CSRs in terms of field descriptions and their accessibility are correctly captured and there are no address decode bugs.
 
-### Progressing towards [V2]({{< relref "hw_stages#hardware-verification-stages" >}})
+### Progressing towards [V2]({{< relref "doc/project/development_stages#hardware-verification-stages" >}})
 
 Bulk of testing in this stage focus on functionally testing the DUT.
 There however are certain categories of tests that may need additional attention.
@@ -248,7 +250,7 @@ To mitigate that, they are constructed with knobs to control the level of constr
 The level of constraints are then slowly eased to allow deeper state space exploration, until all areas of the DUT are satisfactorily stressed.
 Stress tests are ideal for bug hunting and closing coverage.
 
-### Progressing towards [V3]({{< relref "hw_stages#hardware-verification-stages" >}})
+### Progressing towards [V3]({{< relref "doc/project/development_stages#hardware-verification-stages" >}})
 
 The main focus of testing at this stage is to meet our [regression](#nightly) and [coverage](#coverage-collection) goals.
 Apart from that, there are cleanup activities to resolve all pending TODO items in the DV code base and fix all compile and run time warnings (if any) thrown by the simulator tools.
@@ -290,7 +292,7 @@ One of the key requirements of nightly regressions is to complete overnight, so 
 If test runtimes are longer, we could define a weekly regression based on need.
 In general, it is a good practice to periodically profile the simulation to identify bottlenecks in terms of simulation performance (which often is a result of specific coding style choices).
 
-Currently, the [Makefile based simulation workflow]({{< relref "../../hw/dv/tools/README.md" >}}) serves our simulation build and run needs.
+Currently, the [Makefile based simulation workflow]({{< relref "hw/dv/tools/README.md" >}}) serves our simulation build and run needs.
 It does not provide the capability to run regressions yet (under development).
 For the time being, users are limited to running each test individually (or develop a lightweight bash script to run all tests with several seeds using the existing Make based flow).
 Once the regression tool is developed, it will provide a way to enable these capabilities.
@@ -300,7 +302,7 @@ Once the regression tool is developed, it will provide a way to enable these cap
 Collecting, analyzing and reporting coverage with waivers is another requirement to assert 'verification complete'.
 Any gaps in our measured coverage need to be understood and either waived (no need to cover) or closed by additional testing.
 The end goal is to achieve 100% coverage across all applicable coverage metrics.
-This process known as “coverage closure”, is done in close collaboration with the designer(s).
+This process known as "coverage closure", is done in close collaboration with the designer(s).
 Coverage collected from all tests run as a part of the regression is merged into a database for analysis.
 Our primary tool of choice for our coverage closure needs is Synopsys' VCS & Verdi.
 However, the use of other tools / simulators are welcome.
@@ -317,8 +319,8 @@ These metrics are explained briefly below:
 
 *  **Line Coverage**: This metric measures which lines of SystemVerilog RTL code were executed during the course of the simulation.
   This is probably the most intuitive metric to use.
-  Note that “assign” statements are always listed as covered using this metric.
-*  **Toggle Coverage**: This metric measures every logic bit to see if it transitions from 1→ 0 and 0 → 1.
+  Note that "assign" statements are always listed as covered using this metric.
+*  **Toggle Coverage**: This metric measures every logic bit to see if it transitions from 1 &rarr; 0 and 0 &rarr; 1.
   It is very difficult, and not particularly useful to achieve 100% toggle coverage across a design.
   Instead, we focus on closing toggle coverage only on the IO ports of the DUT and IO ports of pre-verified IPs within the DUT.
 *  **FSM state Coverage**: This metric measures which finite state machine states were executed during the course of a simulation.
@@ -343,7 +345,7 @@ Here are the metrics used with a brief explanation:
 
 *  **Assert Coverage**: This metric measures which assertions, cover properties and sequences have been exercised in the course of the simulation.
   Note, an assertion precondition counts as a cover point.
-*  **Covergroup Coverage**: This metric (sometimes called “Testbench Coverage”) measures covergroups during simulation.
+*  **Covergroup Coverage**: This metric (sometimes called "Testbench Coverage") measures covergroups during simulation.
   These are usually coded in the testbench to check that the desired stimulus was generated properly, but can also be embedded in the RTL.
 
 Code coverage can reach 100% but it may not be sufficient to indicate whether all interesting combinations of scenarios were exercised (such as boundary conditions, concurrent scenarios and different CSR fields holding specific combinations of values resulting in the DUT being exercised in interesting ways).
@@ -373,22 +375,22 @@ The following are some of the best practices when adding exclusions:
 
    These categories are as follows:
 
-  *  **UNR**: Unreachable code due to constraints, or module inputs being tied off in a certain way will result in specific coverage items to be unreachable.
-     Additional explanation is optional.
-  *  **NON_RTL**: Simulation constructs in RTL that can be safely excluded in structural coverage collection.
-     These include tasks and functions, initial / final blocks that are specifically used for simulation such as backdoor write and read functions for memory elements.
-     Additional explanation is optional.
-  *  **UNSUPPORTED**: Item being excluded is a part of design feature that is not supported.
-     Additional explanation is optional.
-     *  IP designed by some other team / third party is incorporated, but only a subset of the features are in use. Remaining ones are not supported.
-     *  Features that are added into the design but are not made a part of the design specification for the current generation / chip being taped out
-     *  UVC / agent with detailed coverage items where certain crosses are not supported by the design (ex: TL agent with fcov on full spectrum of burst with all sizes and lengths, but only a subset of it actually being supported).
-     Additional explanation is mandatory.
-  *  **EXTERNAL**: Items that are already covered in another bench.
-     Additional explanation is mandatory.
-  *  **LOW_RISK**: Items that are prohibitively hard to hit, given the resource constraints and are deemed to be of low risk and low value.
-     Features that are added to the design AND are described adequately in the design spec AND a collective upfront decision has been made in agreement with SW/architecture/design/DV to not verify it due to resource constraints.
-     Additional explanation is mandatory.
+   *  **UNR**: Unreachable code due to constraints, or module inputs being tied off in a certain way will result in specific coverage items being unreachable.
+      Additional explanation is optional.
+   *  **NON_RTL**: Simulation constructs in RTL that can be safely excluded in structural coverage collection.
+      These include tasks and functions, initial / final blocks that are specifically used for simulation such as backdoor write and read functions for memory elements.
+      Additional explanation is optional.
+   *  **UNSUPPORTED**: Item being excluded is a part of design feature that is not supported.
+      Additional explanation is optional.
+      *  IP designed by some other team / third party is incorporated, but only a subset of the features are in use. Remaining ones are not supported.
+      *  Features that are added into the design but are not made a part of the design specification for the current generation / chip being taped out
+      *  UVC / agent with detailed coverage items where certain crosses are not supported by the design (ex: TL agent with fcov on full spectrum of burst with all sizes and lengths, but only a subset of it actually being supported).
+      Additional explanation is **mandatory**.
+   *  **EXTERNAL**: Items that are already covered in another bench.
+      Additional explanation is **mandatory**.
+   *  **LOW_RISK**: Items that are prohibitively hard to hit, given the resource constraints and are deemed to be of low risk and low value.
+      Features that are added to the design AND are described adequately in the design spec AND a collective upfront decision has been made in agreement with SW/architecture/design/DV to not verify it due to resource constraints.
+      Additional explanation is **mandatory**.
 
 ### Integration Testing
 
@@ -413,6 +415,53 @@ It is recommended to follow these guidelines when collecting coverage:
   *  If this is not worthwhile, then collect coverage on top-level DUT IOs and IOs of pre-verified sub-modules
 *  Collect all coverage metrics (except toggle based on above bullet) on the DUT and all of its non-pre-verified sub-modules
 *  Treat pre-verified sub-modules as ['black-box'](#integration-testing) in terms of coverage collection
+
+### X-Propagation (Xprop)
+
+Standard RTL simulations (RTL-sim) ignore the uncertainty of X-valued control signals and assign predictable output values.
+As a result, classic RTL-sim often fail to detect design problems related to the lack of Xprop, which actually can be detected in gate-level simulations (gate-sim).
+With Xprop in RTL-sim, we can detect these problems without having to run gate-sim.
+
+Synopsys VCS and Cadence Xcelium both provide the following 2 modes for Xprop.
+  * **Optimistic Mode**: Closer to actual hardware behavior and is the more commonly used mode
+  * **Pessimistic Mode**: More pessimistic than a standard gate-sim
+
+Example:
+```systemverilog
+always @(posedge clk) begin
+  if (cond) out <= a;
+  else      out <= b;
+end
+```
+
+In the above example, results of 'out' are shown as following.
+
+a | b | cond | Classic RTL-sim | Gate-sim | Actual Hardware | Xprop Optimistic | Xprop Pessimistic |
+--|---|------|-----------------|----------|-----------------|------------------|-------------------|
+0 | 0 |  X   |        0        |     0    |       0         |         0        |         X         |
+0 | 1 |  X   |        1        |     X    |       0/1       |         X        |         X         |
+1 | 0 |  X   |        0        |     X    |       0/1       |         X        |         X         |
+1 | 1 |  X   |        1        |     X    |       1         |         1        |         X         |
+
+We choose **Pessimistic Mode** as we want to avoid using X value in the condition.
+Xprop is enabled by default when running simulations for all of our DUTs due to the acceptable level of overhead it adds in terms of wall-clock time (less than 10%).
+
+It's mandatory to enable Xprop when running regression for coverage closure.
+To test Xprop more effectively, the address / data / control signals are required to be driven to Xs when invalid (valid bit is not set).
+For example, when a_valid is 0 in the TLUL interface, we drive data, address and control signals to unknown values.
+```systemverilog
+  function void invalidate_a_channel();
+    vif.host_cb.h2d.a_opcode  <= tlul_pkg::tl_a_op_e'('x);
+    vif.host_cb.h2d.a_param   <= '{default:'x};
+    vif.host_cb.h2d.a_size    <= '{default:'x};
+    vif.host_cb.h2d.a_source  <= '{default:'x};
+    vif.host_cb.h2d.a_address <= '{default:'x};
+    vif.host_cb.h2d.a_mask    <= '{default:'x};
+    vif.host_cb.h2d.a_data    <= '{default:'x};
+    vif.host_cb.h2d.a_user    <= '{default:'x};
+    vif.host_cb.h2d.a_valid   <= 1'b0;
+  endfunction : invalidate_a_channel
+```
 
 ## FPV
 
@@ -443,13 +492,18 @@ The goal of this review is to achieve utmost clarity in the planning of the DV e
 The feedback in this review flows both ways - the language in the design specification could be made more precise, or missing items in both, the design specification as well as in the testplan could be identified and added.
 This enables the development stage to progress smoothly.
 
-Subsequently, the intermediate transitions within the verification stages are reviewed within the GitHub pull-request made for updating the checklist and the [project status]({{< relref "hw_stages.md#indicating-stages-and-making-transitions" >}}).
+Subsequently, the intermediate transitions within the verification stages are reviewed within the GitHub pull-request made for updating the checklist and the [project status]({{< relref "doc/project/development_stages.md#indicating-stages-and-making-transitions" >}}).
 
 Finally, after the verification effort is complete, there is a final sign-off review to ensure all checklist items are completed satisfactorily without any major exceptions or open issues.
 
 ## Filing Issues
 
 We use the [OpenTitan GitHub Issue tracker](https://github.com/lowRISC/opentitan/issues) for filing possible bugs not just in the design, but also in the DV code base or in any associated tools or processes that may hinder progress.
+
+## Getting Started with DV
+
+The process for getting started with DV involves many steps, including getting clarity on its purpose, setting up the testbench, documentation, etc.
+These are discussed in the [Getting Started with DV]({{< relref "getting_started_dv.md" >}}) document.
 
 ## Pending Work Items
 

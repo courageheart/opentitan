@@ -1,17 +1,10 @@
-####################################################################################################
-## Copyright lowRISC contributors.                                                                ##
-## Licensed under the Apache License, Version 2.0, see LICENSE for details.                       ##
-## SPDX-License-Identifier: Apache-2.0                                                            ##
-####################################################################################################
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+
 .DEFAULT_GOAL := all
 
 all: build run
-
-########################
-## RAL target         ##
-########################
-ral:
-	${RAL_TOOL} ${RAL_TOOL_OPTS}
 
 ###############################
 ## sim build and run targets ##
@@ -41,22 +34,23 @@ pre_run:
 	/bin/bash ${MAKE_ROOT}/run_dir_limiter ${RUN_PATH} ${RUN_DIR_LIMIT}
 	env > ${RUN_DIR}/env_vars
 
-# TODO: The rm -rf SW_BUILD_DIR below is necessary because currently
-#       sw build dependency does not appear to be fully working with the DV flow
-#       This should be investigated later or replaced with the new build system
 sw_build: pre_run
 ifneq (${SW_NAME},)
-	rm -rf ${SW_BUILD_DIR}
-	mkdir -p ${SW_BUILD_DIR}
-	$(MAKE) -C $(SW_ROOT_DIR)/device \
-	  SW_DIR=boot_rom \
-	  SW_BUILD_DIR=$(SW_BUILD_DIR)/rom \
-	  MAKEFLAGS="$(SW_OPTS)"
-	$(MAKE) -C $(SW_ROOT_DIR)/device \
-	  SW_DIR=$(SW_DIR) \
-	  SW_NAME=$(SW_NAME) \
-	  SW_BUILD_DIR=$(SW_BUILD_DIR)/sw \
-	  MAKEFLAGS="$(SW_OPTS)"
+	# NOTE: Pass -f, since we're going to be re-building everything every time,
+	# anyways.
+	cd $(PROJ_ROOT) && \
+	BUILD_ROOT=$(SW_BUILD_DIR) $(PROJ_ROOT)/meson_init.sh -f
+	# NOTE: We're using the fpga platform for now, because there is no
+	# such thing as a DV platform yet (nor does any code do anything
+	# special for DV yet).
+	ninja -C $(SW_BUILD_DIR)/build-out sw/device/boot_rom/boot_rom_export_$(SW_BUILD_DEVICE)
+	ninja -C $(SW_BUILD_DIR)/build-out sw/device/$(SW_DIR)/$(SW_NAME)_export_$(SW_BUILD_DEVICE)
+
+	mkdir -p $(SW_BUILD_DIR)/sw $(SW_BUILD_DIR)/rom
+	cp $(SW_BUILD_DIR)/build-out/sw/device/boot_rom/boot_rom_$(SW_BUILD_DEVICE).vmem \
+		$(SW_BUILD_DIR)/rom/rom.vmem
+	cp $(SW_BUILD_DIR)/build-out/sw/device/$(SW_DIR)/$(SW_NAME)_$(SW_BUILD_DEVICE).vmem \
+		$(SW_BUILD_DIR)/sw/sw.vmem
 endif
 
 simulate: sw_build

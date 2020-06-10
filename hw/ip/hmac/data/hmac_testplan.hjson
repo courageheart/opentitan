@@ -2,6 +2,7 @@
   name: "hmac"
   import_testplans: ["hw/dv/tools/testplans/csr_testplan.hjson",
                      "hw/dv/tools/testplans/intr_test_testplan.hjson",
+                     "hw/dv/tools/testplans/stress_all_with_reset_testplan.hjson",
                      "hw/dv/tools/testplans/tl_device_access_types_testplan.hjson"]
   entries: [
     {
@@ -59,17 +60,27 @@
       tests: ["hmac_datapath_stress"]
     }
     {
+      name: error
+      desc: '''This error case runs sequences that will cause interrupt bit hmac_err to set.
+            This sequence includes:
+            - Write msg_fifo or set hash_start when sha is disabled
+            - Update secret key when hash is in process
+            - Set hash_start when hash is active
+            - Write msg before hash_start is set'''
+      milestone: V2
+      tests: ["hmac_error"]
+    }
+    {
       name: stress_all
       desc: "Stress_all test is a random mix of all the test above except csr tests."
       milestone: V2
       tests: ["hmac_stress_all"]
     }
     {
-      name: stress_all_with_rand_reset
-      desc: '''Reset test insert random reset during the stress_all test. After reset is asserted,
-            the test will read and check all valid CSR registers.'''
-      milestone: V2
-      tests: ["hmac_stress_all_with_rand_reset"]
+      name: write_config_and_secret_key_during_msg_wr
+      desc: "Change config registers and secret keys during msg write, make sure access is blocked."
+      milestone: V3
+      tests: ["hmac_sanity"]
     }
   ]
 }

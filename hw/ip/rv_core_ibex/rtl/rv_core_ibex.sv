@@ -9,16 +9,23 @@
  * Instruction and data bus are 32 bit wide TileLink-UL (TL-UL).
  */
 module rv_core_ibex #(
-  parameter bit          PMPEnable        = 1'b0,
-  parameter int unsigned PMPGranularity   = 0,
-  parameter int unsigned PMPNumRegions    = 4,
-  parameter int unsigned MHPMCounterNum   = 8,
-  parameter int unsigned MHPMCounterWidth = 40,
-  parameter bit          RV32E            = 0,
-  parameter bit          RV32M            = 1,
-  parameter int unsigned DmHaltAddr       = 32'h1A110800,
-  parameter int unsigned DmExceptionAddr  = 32'h1A110808,
-  parameter bit          PipeLine         = 0
+  parameter bit          PMPEnable                = 1'b0,
+  parameter int unsigned PMPGranularity           = 0,
+  parameter int unsigned PMPNumRegions            = 4,
+  parameter int unsigned MHPMCounterNum           = 8,
+  parameter int unsigned MHPMCounterWidth         = 40,
+  parameter bit          RV32E                    = 0,
+  parameter bit          RV32M                    = 1,
+  parameter bit          BranchTargetALU          = 1,
+  parameter bit          WritebackStage           = 1,
+  parameter              MultiplierImplementation = "single-cycle",
+  parameter bit          ICache                   = 1'b0,
+  parameter bit          ICacheECC                = 1'b0,
+  parameter bit          DbgTriggerEn             = 1'b1,
+  parameter bit          SecureIbex               = 1'b0,
+  parameter int unsigned DmHaltAddr               = 32'h1A110800,
+  parameter int unsigned DmExceptionAddr          = 32'h1A110808,
+  parameter bit          PipeLine                 = 0
 ) (
   // Clock and Reset
   input  logic        clk_i,
@@ -59,25 +66,25 @@ module rv_core_ibex #(
   // if pipeline is 0, passthrough the fifo completely
   localparam int FifoPass = PipeLine ? 1'b0 : 1'b1;
   localparam int FifoDepth = PipeLine ? 4'h2 : 4'h0;
-  localparam int WordSize = $clog2(TL_DW / 8);
 
-  // Inst interface (internal)
-  logic        instr_req_o;
-  logic        instr_gnt_i;
-  logic        instr_rvalid_i;
-  logic [31:0] instr_addr_o;
-  logic [31:0] instr_rdata_i;
-  logic        instr_err_i;
+  // Instruction interface (internal)
+  logic        instr_req;
+  logic        instr_gnt;
+  logic        instr_rvalid;
+  logic [31:0] instr_addr;
+  logic [31:0] instr_rdata;
+  logic        instr_err;
 
-  logic        data_req_o;
-  logic        data_gnt_i;
-  logic        data_rvalid_i;
-  logic        data_we_o;
-  logic [3:0]  data_be_o;
-  logic [31:0] data_addr_o;
-  logic [31:0] data_wdata_o;
-  logic [31:0] data_rdata_i;
-  logic        data_err_i;
+  // Data interface (internal)
+  logic        data_req;
+  logic        data_gnt;
+  logic        data_rvalid;
+  logic        data_we;
+  logic [3:0]  data_be;
+  logic [31:0] data_addr;
+  logic [31:0] data_wdata;
+  logic [31:0] data_rdata;
+  logic        data_err;
 
   // Pipeline interfaces
   tl_h2d_t tl_i_ibex2fifo;
@@ -93,10 +100,13 @@ module rv_core_ibex #(
   logic        rvfi_halt;
   logic        rvfi_intr;
   logic [ 1:0] rvfi_mode;
+  logic [ 1:0] rvfi_ixl;
   logic [ 4:0] rvfi_rs1_addr;
   logic [ 4:0] rvfi_rs2_addr;
+  logic [ 4:0] rvfi_rs3_addr;
   logic [31:0] rvfi_rs1_rdata;
   logic [31:0] rvfi_rs2_rdata;
+  logic [31:0] rvfi_rs3_rdata;
   logic [ 4:0] rvfi_rd_addr;
   logic [31:0] rvfi_rd_wdata;
   logic [31:0] rvfi_pc_rdata;
@@ -109,111 +119,107 @@ module rv_core_ibex #(
 `endif
 
   ibex_core #(
-     .PMPEnable        ( PMPEnable         ),
-     .PMPGranularity   ( PMPGranularity    ),
-     .PMPNumRegions    ( PMPNumRegions     ),
-     .MHPMCounterNum   ( MHPMCounterNum    ),
-     .MHPMCounterWidth ( MHPMCounterWidth  ),
-     .RV32E            ( RV32E             ),
-     .RV32M            ( RV32M             ),
-     .DmHaltAddr       ( DmHaltAddr        ),
-     .DmExceptionAddr  ( DmExceptionAddr   )
+    .PMPEnable                ( PMPEnable                ),
+    .PMPGranularity           ( PMPGranularity           ),
+    .PMPNumRegions            ( PMPNumRegions            ),
+    .MHPMCounterNum           ( MHPMCounterNum           ),
+    .MHPMCounterWidth         ( MHPMCounterWidth         ),
+    .RV32E                    ( RV32E                    ),
+    .RV32M                    ( RV32M                    ),
+    .BranchTargetALU          ( BranchTargetALU          ),
+    .WritebackStage           ( WritebackStage           ),
+    .MultiplierImplementation ( MultiplierImplementation ),
+    .ICache                   ( ICache                   ),
+    .ICacheECC                ( ICacheECC                ),
+    .DbgTriggerEn             ( DbgTriggerEn             ),
+    .SecureIbex               ( SecureIbex               ),
+    .DmHaltAddr               ( DmHaltAddr               ),
+    .DmExceptionAddr          ( DmExceptionAddr          )
   ) u_core (
-     .clk_i,
-     .rst_ni,
+    .clk_i,
+    .rst_ni,
 
-     .test_en_i,
+    .test_en_i,
 
-     .hart_id_i,
-     .boot_addr_i,
+    .hart_id_i,
+    .boot_addr_i,
 
-     .instr_req_o,
-     .instr_gnt_i,
-     .instr_rvalid_i,
-     .instr_addr_o,
-     .instr_rdata_i,
-     .instr_err_i,
+    .instr_req_o    ( instr_req    ),
+    .instr_gnt_i    ( instr_gnt    ),
+    .instr_rvalid_i ( instr_rvalid ),
+    .instr_addr_o   ( instr_addr   ),
+    .instr_rdata_i  ( instr_rdata  ),
+    .instr_err_i    ( instr_err    ),
 
-     .data_req_o,
-     .data_gnt_i,
-     .data_rvalid_i,
-     .data_we_o,
-     .data_be_o,
-     .data_addr_o,
-     .data_wdata_o,
-     .data_rdata_i,
-     .data_err_i,
+    .data_req_o     ( data_req     ),
+    .data_gnt_i     ( data_gnt     ),
+    .data_rvalid_i  ( data_rvalid  ),
+    .data_we_o      ( data_we      ),
+    .data_be_o      ( data_be      ),
+    .data_addr_o    ( data_addr    ),
+    .data_wdata_o   ( data_wdata   ),
+    .data_rdata_i   ( data_rdata   ),
+    .data_err_i     ( data_err     ),
 
-     .irq_software_i,
-     .irq_timer_i,
-     .irq_external_i,
-     .irq_fast_i,
-     .irq_nm_i,
+    .irq_software_i,
+    .irq_timer_i,
+    .irq_external_i,
+    .irq_fast_i,
+    .irq_nm_i,
 
-     .debug_req_i,
+    .debug_req_i,
 
 `ifdef RVFI
-     .rvfi_valid,
-     .rvfi_order,
-     .rvfi_insn,
-     .rvfi_trap,
-     .rvfi_halt,
-     .rvfi_intr,
-     .rvfi_mode,
-     .rvfi_rs1_addr,
-     .rvfi_rs2_addr,
-     .rvfi_rs1_rdata,
-     .rvfi_rs2_rdata,
-     .rvfi_rd_addr,
-     .rvfi_rd_wdata,
-     .rvfi_pc_rdata,
-     .rvfi_pc_wdata,
-     .rvfi_mem_addr,
-     .rvfi_mem_rmask,
-     .rvfi_mem_wmask,
-     .rvfi_mem_rdata,
-     .rvfi_mem_wdata,
+    .rvfi_valid,
+    .rvfi_order,
+    .rvfi_insn,
+    .rvfi_trap,
+    .rvfi_halt,
+    .rvfi_intr,
+    .rvfi_mode,
+    .rvfi_ixl,
+    .rvfi_rs1_addr,
+    .rvfi_rs2_addr,
+    .rvfi_rs3_addr,
+    .rvfi_rs1_rdata,
+    .rvfi_rs2_rdata,
+    .rvfi_rs3_rdata,
+    .rvfi_rd_addr,
+    .rvfi_rd_wdata,
+    .rvfi_pc_rdata,
+    .rvfi_pc_wdata,
+    .rvfi_mem_addr,
+    .rvfi_mem_rmask,
+    .rvfi_mem_wmask,
+    .rvfi_mem_rdata,
+    .rvfi_mem_wdata,
 `endif
 
-     .fetch_enable_i,
-     .core_sleep_o
+    .fetch_enable_i,
+    .core_sleep_o
   );
 
   //
   // Convert ibex data/instruction bus to TL-UL
   //
 
-  // Generate a_source fields by toggling between 0 and 1
-  logic tl_i_source, tl_d_source;
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      {tl_i_source, tl_d_source} <= '0;
-    end else begin
-      if (instr_req_o && instr_gnt_i) tl_i_source <= !tl_i_source;
-      if (data_req_o && data_gnt_i)  tl_d_source <= !tl_d_source;
-    end
-  end
-
-  // Convert core instruction interface to TL-UL
-  // The outgoing address is always word aligned
-  assign tl_i_ibex2fifo = '{
-    a_valid:   instr_req_o,
-    a_opcode:  tlul_pkg::Get,
-    a_param:   3'h0,
-    a_size:    2'(WordSize),
-    a_mask:    {TL_DBW{1'b1}},
-    a_source:  TL_AIW'(tl_i_source),
-    a_address: {instr_addr_o[31:WordSize], {WordSize{1'b0}}},
-    a_data:    {TL_DW{1'b0}},
-    a_user:    {TL_AUW{1'b0}},
-
-    d_ready:   1'b1
-  };
-
-  assign instr_gnt_i    = tl_i_fifo2ibex.a_ready & tl_i_ibex2fifo.a_valid;
-  assign instr_rvalid_i = tl_i_fifo2ibex.d_valid;
-  assign instr_rdata_i  = tl_i_fifo2ibex.d_data;
-  assign instr_err_i    = tl_i_fifo2ibex.d_error;
+  tlul_adapter_host #(
+    .MAX_REQS(2)
+  ) tl_adapter_host_i_ibex (
+    .clk_i,
+    .rst_ni,
+    .req_i   (instr_req),
+    .gnt_o   (instr_gnt),
+    .addr_i  (instr_addr),
+    .we_i    (1'b0),
+    .wdata_i (32'b0),
+    .be_i    (4'hF),
+    .valid_o (instr_rvalid),
+    .rdata_o (instr_rdata),
+    .err_o   (instr_err),
+    .tl_o    (tl_i_ibex2fifo),
+    .tl_i    (tl_i_fifo2ibex)
+  );
 
   tlul_fifo_sync #(
     .ReqPass(FifoPass),
@@ -232,30 +238,23 @@ module rv_core_ibex #(
     .spare_rsp_i (1'b0),
     .spare_rsp_o ());
 
-  // Convert core data interface to TL-UL
-  // The outgoing address is always word aligned.  If it's a write access that occupies
-  // all lanes, then the operation is always PutFullData; otherwise it is always PutPartialData
-  // When in partial opertaion, tlul allows writes smaller than the operation size, thus
-  // size / mask information can be directly passed through
-  assign tl_d_ibex2fifo = '{
-    a_valid:   data_req_o,
-    a_opcode:  (~data_we_o)        ? tlul_pkg::Get           :
-               (data_be_o == 4'hf) ? tlul_pkg::PutFullData   :
-                                     tlul_pkg::PutPartialData,
-    a_param:   3'h0,
-    a_size:    2'(WordSize),
-    a_mask:    data_be_o,
-    a_source:  TL_AIW'(tl_d_source),
-    a_address: {data_addr_o[31:WordSize], {WordSize{1'b0}}},
-    a_data:    data_wdata_o,
-    a_user:    {TL_AUW{1'b0}},
-
-    d_ready:   1'b1
-  };
-  assign data_gnt_i    = tl_d_fifo2ibex.a_ready & tl_d_ibex2fifo.a_valid;
-  assign data_rvalid_i = tl_d_fifo2ibex.d_valid;
-  assign data_rdata_i  = tl_d_fifo2ibex.d_data;
-  assign data_err_i    = tl_d_fifo2ibex.d_error;
+  tlul_adapter_host #(
+    .MAX_REQS(2)
+  ) tl_adapter_host_d_ibex (
+    .clk_i,
+    .rst_ni,
+    .req_i   (data_req),
+    .gnt_o   (data_gnt),
+    .addr_i  (data_addr),
+    .we_i    (data_we),
+    .wdata_i (data_wdata),
+    .be_i    (data_be),
+    .valid_o (data_rvalid),
+    .rdata_o (data_rdata),
+    .err_o   (data_err),
+    .tl_o    (tl_d_ibex2fifo),
+    .tl_i    (tl_d_fifo2ibex)
+  );
 
   tlul_fifo_sync #(
     .ReqPass(FifoPass),
@@ -289,10 +288,13 @@ module rv_core_ibex #(
     .rvfi_halt,
     .rvfi_intr,
     .rvfi_mode,
+    .rvfi_ixl,
     .rvfi_rs1_addr,
     .rvfi_rs2_addr,
+    .rvfi_rs3_addr,
     .rvfi_rs1_rdata,
     .rvfi_rs2_rdata,
+    .rvfi_rs3_rdata,
     .rvfi_rd_addr,
     .rvfi_rd_wdata,
     .rvfi_pc_rdata,

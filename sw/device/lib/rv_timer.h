@@ -2,11 +2,10 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef _F_LIB_RV_TIMER_H__
-#define _F_LIB_RV_TIMER_H__
+#ifndef OPENTITAN_SW_DEVICE_LIB_RV_TIMER_H_
+#define OPENTITAN_SW_DEVICE_LIB_RV_TIMER_H_
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 /**
@@ -50,4 +49,4 @@ void rv_timer_intr_enable(uint32_t hart, bool en);
  */
 void rv_timer_clr_all_intrs(void);
 
-#endif  // _F_LIB_RV_TIMER_H__
+#endif  // OPENTITAN_SW_DEVICE_LIB_RV_TIMER_H_

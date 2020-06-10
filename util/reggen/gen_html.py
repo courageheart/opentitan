@@ -2,19 +2,18 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 """
-Generate html documentation from validated register json tree
+Generate HTML documentation from validated register Hjson tree
 """
 
 import logging as log
 import re
-import sys
 
 
 def genout(outfile, msg):
     outfile.write(msg)
 
 
-# expand !!register references into html links, gen **bold** and *italic*
+# expand !!register references into HTML links, gen **bold** and *italic*
 def desc_expand(s, rnames):
     def fieldsub(match):
         base = match.group(1).partition('.')[0].lower()
@@ -108,7 +107,8 @@ def gen_html_reg_pic(outfile, reg, width):
             gen_tbl_row(outfile, fieldmsb, hdrbits, True)
 
         namelen = len(fname)
-        if namelen == 0 or fname == ' ': fname = "&nbsp;"
+        if namelen == 0 or fname == ' ':
+            fname = "&nbsp;"
         if (namelen > bsize * fieldwidth):
             usestyle = (" style=\"font-size:" + str(
                 (bsize * 100 * fieldwidth) / namelen) + "%\"")
@@ -156,7 +156,7 @@ def gen_html_register(outfile, reg, comp, width, rnames, toc, toclvl):
 
     rname = reg['name']
     offset = reg['genoffset']
-    #in a multireg with multiple regs give anchor with base register name
+    # in a multireg with multiple regs give anchor with base register name
     if 'genbasebits' in reg and rname[-1] == '0':
         genout(outfile, "<div id=\"Reg_" + rname[:-1].lower() + "\"></div>\n")
     regwen_string = ''
@@ -164,11 +164,12 @@ def gen_html_register(outfile, reg, comp, width, rnames, toc, toclvl):
         regwen_string = '<br>Register enable = ' + reg['regwen']
     genout(
         outfile, "<table class=\"regdef\" id=\"Reg_" + rname.lower() + "\">\n"
-        "<tr><th class=\"regdef\" colspan=5>" + comp + "." + rname + " @ + " +
-        hex(offset) + "<br>" + desc_expand(reg['desc'], rnames) + "<br>" +
-        "Reset default = " + hex(reg['genresval']) + ", mask " + hex(
-            reg['genresmask']) + regwen_string + "</th></tr>\n")
-    if toc != None:
+        "<tr><th class=\"regdef\" colspan=5><div>" + comp + "." + rname +
+        " @ + " + hex(offset) + "</div><div>" +
+        desc_expand(reg['desc'], rnames) + "</div>" + "<div>Reset default = " +
+        hex(reg['genresval']) + ", mask " + hex(reg['genresmask']) +
+        regwen_string + "</div></th></tr>\n")
+    if toc is not None:
         toc.append((toclvl, comp + "." + rname, "Reg_" + rname.lower()))
     genout(outfile, "<tr><td colspan=5>")
     gen_html_reg_pic(outfile, reg, width)
@@ -184,7 +185,7 @@ def gen_html_register(outfile, reg, comp, width, rnames, toc, toclvl):
     mergebase = -1
     for field in reg['fields']:
         fcount += 1
-        if not 'name' in field:
+        if 'name' not in field:
             fname = "field " + str(fcount)
         else:
             fname = field['name']
@@ -214,21 +215,21 @@ def gen_html_register(outfile, reg, comp, width, rnames, toc, toclvl):
         genout(outfile, "<tr><td class=\"regbits\">" + field['bits'] + "</td>")
         genout(outfile, "<td class=\"regperm\">" + field['swaccess'] + "</td>")
         genout(
-            outfile,
-            "<td class=\"regrv\">" + ('x' if field['genresvalx'] else hex(
-                field['genresval'])) + "</td>")
+            outfile, "<td class=\"regrv\">" +
+            ('x' if field['genresvalx'] else hex(field['genresval'])) +
+            "</td>")
         genout(outfile, "<td class=\"regfn\">" + fname + "</td>")
         if 'desc' in field:
             genout(
-                outfile, "<td class=\"regde\">" + desc_expand(
-                    field['desc'], rnames) + "\n")
+                outfile, "<td class=\"regde\">" +
+                desc_expand(field['desc'], rnames) + "\n")
         else:
             genout(outfile, "<td>\n")
 
         if 'enum' in field:
             genout(outfile, "    <table>")
             for enum in field['enum']:
-                if (not 'name' in enum):
+                if 'name' not in enum:
                     ename = "enum for " + fname + " in " + rname
                 else:
                     ename = enum['name']
@@ -258,11 +259,11 @@ def gen_html_window(outfile, win, comp, regwidth, rnames, toc, toclvl):
     offset = win['genoffset']
     genout(
         outfile, '<table class="regdef" id="Reg_' + wname.lower() + '">\n'
-        '<tr><th class="regdef">' + comp + '.' + wname + ' @ + ' + hex(offset)
-        + '<br>' + win['items'] + ' item ' + win['swaccess'] +
-        ' window<br>Byte writes are ' +
+        '<tr><th class="regdef"><div>' + comp + '.' + wname + ' @ + ' +
+        hex(offset) + '</div><div>' + win['items'] + ' item ' +
+        win['swaccess'] + ' window</div><div>Byte writes are ' +
         ('' if win['genbyte-write'] else '<i>not</i> ') +
-        'supported</th></tr>\n')
+        'supported</div></th></tr>\n')
     genout(outfile, '<tr><td><table class="regpic">')
     genout(outfile, '<tr><td width="10%"></td>')
     wid = win['genvalidbits']
@@ -300,7 +301,7 @@ def gen_html_window(outfile, win, comp, regwidth, rnames, toc, toclvl):
         outfile, '<tr><td class="regde">' + desc_expand(win['desc'], rnames) +
         '</td></tr>')
     genout(outfile, "</table>\n<br><br>\n")
-    if toc != None:
+    if toc is not None:
         toc.append((toclvl, comp + "." + wname, "Reg_" + wname.lower()))
 
 

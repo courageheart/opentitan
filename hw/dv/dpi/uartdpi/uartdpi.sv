@@ -7,11 +7,11 @@ module uartdpi #(
   parameter FREQ = 'x,
   parameter string NAME = "uart0"
 )(
-  input      clk_i,
-  input      rst_ni,
+  input  logic clk_i,
+  input  logic rst_ni,
 
-  output reg tx_o,
-  input      rx_i
+  output logic tx_o,
+  input  logic rx_i
 );
 
   localparam CYCLES_PER_SYMBOL = FREQ/BAUD;
@@ -29,9 +29,13 @@ module uartdpi #(
     void uartdpi_write(input chandle ctx, int data);
 
   chandle ctx;
+  int file_handle;
+  string file_name;
 
   initial begin
     ctx = uartdpi_create(NAME);
+    $sformat(file_name, "%s.log", NAME);
+    file_handle = $fopen(file_name, "w");
   end
 
   // TX
@@ -107,6 +111,7 @@ module uartdpi #(
             rxactive <= 0;
             if (rx_i) begin
               uartdpi_write(ctx, rxsymbol);
+              $fwrite(file_handle, "%c", rxsymbol);
             end
           end
         end

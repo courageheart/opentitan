@@ -5,7 +5,7 @@ CAPI=2:
 name: "lowrisc:fpv:prim_lfsr_fpv:0.1"
 description: "ALERT_HANDLER FPV target"
 filesets:
-  files_fpv:
+  files_formal:
     depend:
       - lowrisc:prim:all
     files:
@@ -14,8 +14,13 @@ filesets:
 
 targets:
   default: &default_target
+    # note, this setting is just used
+    # to generate a file list for jg
+    default_tool: icarus
+    filesets:
+      - files_formal
     toplevel:
       - prim_lfsr_fpv
-    filesets:
-      - files_fpv
-    default_tool: jg
+
+  formal:
+    <<: *default_target

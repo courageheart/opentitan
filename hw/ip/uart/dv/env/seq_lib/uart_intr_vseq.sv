@@ -53,36 +53,51 @@ class uart_intr_vseq extends uart_base_vseq;
     case (uart_intr)
       TxWatermark: begin
         int level = ral.fifo_ctrl.txilvl.get_mirrored_value();
-        int watermark_bytes = get_watermark_bytes_by_level(level);
+        int watermark_bytes = get_watermark_bytes_by_level(level, UartTx);
+        if (!en_tx) return;
         //  when tx is enabled, one extra item is in the data path
         //  when watermark_bytes==1, watermark interrupt is triggered before item is processed
         if (en_tx && watermark_bytes > 1) watermark_bytes += 1;
         drive_tx_bytes(.num_bytes(watermark_bytes - 1));
         check_one_intr(.uart_intr(uart_intr), .exp(0));
         drive_tx_bytes(.num_bytes(1));
+        // wait until it drops below watermark
+        csr_spinwait(.ptr(ral.fifo_status.txlvl),
+                     .exp_data(get_watermark_bytes_by_level(level, UartTx)),
+                     .compare_op(CompareOpLt));
         check_one_intr(.uart_intr(uart_intr), .exp(1));
+        cfg.m_uart_agent_cfg.vif.wait_for_tx_idle();
+        // check interrupt is non-sticky
+        csr_wr(.csr(ral.intr_state), .value(1 << uart_intr));
+        drive_tx_bytes(.num_bytes(watermark_bytes - 1));
+        check_one_intr(.uart_intr(uart_intr), .exp(0));
+        cfg.m_uart_agent_cfg.vif.wait_for_tx_idle();
       end
 
       RxWatermark: begin
         int level = ral.fifo_ctrl.rxilvl.get_mirrored_value();
-        int watermark_bytes = get_watermark_bytes_by_level(level);
+        int watermark_bytes = get_watermark_bytes_by_level(level, UartRx);
         drive_rx_bytes(.num_bytes(watermark_bytes - 1));
         check_one_intr(.uart_intr(uart_intr), .exp(0));
         drive_rx_bytes(.num_bytes(1));
         check_one_intr(.uart_intr(uart_intr), .exp(en_rx));
+        // check interrupt is non-sticky
+        csr_wr(.csr(ral.intr_state), .value(1 << uart_intr));
+        drive_rx_bytes(.num_bytes(1));
+        check_one_intr(.uart_intr(uart_intr), .exp(0));
       end
 
-      TxOverflow: begin
-        // when tx is enabled, one extra item is in the data path, total is UART_FIFO_DEPTH + 1
+      TxEmpty: begin
         if (en_tx) begin
-          tx_fifo_max_size = UART_FIFO_DEPTH + 1;
-        end else begin
-          tx_fifo_max_size = UART_FIFO_DEPTH;
+          // when tx is enabled, one extra item is in the data path, total is UART_FIFO_DEPTH + 1
+          drive_tx_bytes(.num_bytes($urandom_range(1, UART_FIFO_DEPTH + 1)));
+          check_one_intr(.uart_intr(uart_intr), .exp(0));
+          spinwait_txidle();
+          check_one_intr(.uart_intr(uart_intr), .exp(1));
+          // check interrupt is non-sticky
+          csr_wr(.csr(ral.intr_state), .value(1 << uart_intr));
+          check_one_intr(.uart_intr(uart_intr), .exp(0));
         end
-        drive_tx_bytes(.num_bytes(tx_fifo_max_size));
-        check_one_intr(.uart_intr(uart_intr), .exp(0));
-        drive_tx_bytes(.num_bytes(1));
-        check_one_intr(.uart_intr(uart_intr), .exp(1));
       end
 
       RxOverflow: begin
@@ -234,9 +249,9 @@ class uart_intr_vseq extends uart_base_vseq;
     bit exp_pin;
 
     csr_rd(.ptr(ral.intr_state), .value(act_intr_state));
-    `DV_CHECK_EQ(act_intr_state[uart_intr], exp)
+    if (!cfg.under_reset) `DV_CHECK_EQ(act_intr_state[uart_intr], exp)
     exp_pin = exp & en_intr[uart_intr];
-    `DV_CHECK_EQ(cfg.intr_vif.pins[uart_intr], exp_pin, $sformatf(
+    if (!cfg.under_reset) `DV_CHECK_EQ(cfg.intr_vif.pins[uart_intr], exp_pin, $sformatf(
         "uart_intr name/val: %0s/%0d, en_intr: %0h", uart_intr.name, uart_intr, en_intr))
   endtask : check_one_intr
 
@@ -246,9 +261,9 @@ class uart_intr_vseq extends uart_base_vseq;
     bit [NumUartIntr-1:0] exp_pin;
 
     csr_rd(.ptr(ral.intr_state), .value(act_intr_state));
-    `DV_CHECK_EQ(act_intr_state, exp)
+    if (!cfg.under_reset) `DV_CHECK_EQ(act_intr_state, exp)
     exp_pin = exp & en_intr;
-    `DV_CHECK_EQ(cfg.intr_vif.pins[NumUartIntr-1:0], exp_pin, $sformatf(
+    if (!cfg.under_reset) `DV_CHECK_EQ(cfg.intr_vif.pins[NumUartIntr-1:0], exp_pin, $sformatf(
         "uart_intr val: %0h, en_intr: %0h", exp, en_intr))
 
     if (do_clear) begin

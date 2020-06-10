@@ -2,47 +2,42 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-class uart_agent extends uvm_agent;
+class uart_agent extends dv_base_agent#(
+    .CFG_T          (uart_agent_cfg),
+    .DRIVER_T       (uart_driver),
+    .SEQUENCER_T    (uart_sequencer),
+    .MONITOR_T      (uart_monitor),
+    .COV_T          (uart_agent_cov)
+  );
   `uvm_component_utils(uart_agent)
 
-  uart_agent_cfg  cfg;
-  uart_driver     driver;
-  uart_sequencer  sequencer;
-  uart_monitor    monitor;
-  uart_agent_cov  cov;
+  uart_logger m_logger;
 
   `uvm_component_new
 
   function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    // get uart_agent_cfg object from uvm_config_db
-    if (!uvm_config_db#(uart_agent_cfg)::get(this, "", "cfg", cfg))
-      `uvm_fatal(`gfn, "failed to get uart_agent_cfg object from uvm_config_db")
-
     // get uart_if handle
-    if (!uvm_config_db#(virtual uart_if)::get(this, "", "vif", cfg.vif))
+    if (!uvm_config_db#(virtual uart_if)::get(this, "", "vif", cfg.vif)) begin
       `uvm_fatal(`gfn, "failed to get uart_if handle from uvm_config_db")
-
-    if (cfg.en_cov) begin
-      cov = uart_agent_cov ::type_id::create("cov", this);
-      cov.cfg = cfg;
     end
-    // create components
-    monitor = uart_monitor::type_id::create("monitor", this);
-    monitor.cfg = cfg;
-    monitor.cov = cov;
-    if (cfg.is_active) begin
-      sequencer = uart_sequencer::type_id::create("sequencer", this);
-      sequencer.cfg = cfg;
-      driver = uart_driver::type_id::create("driver", this);
-      driver.cfg = cfg;
+
+    // Create the logger instance.
+    if (cfg.en_logger) begin
+      m_logger = uart_logger::type_id::create("m_logger", this);
+      m_logger.cfg = cfg;
     end
   endfunction
 
   function void connect_phase(uvm_phase phase);
     super.connect_phase(phase);
-    if (cfg.is_active) begin
-      driver.seq_item_port.connect(sequencer.seq_item_export);
+    // Connect the logger TLM port to the monitor.
+    if (cfg.en_logger) begin
+      if (cfg.use_rx_for_logger) begin
+        monitor.rx_analysis_port.connect(m_logger.log_item_fifo.analysis_export);
+      end else begin
+        monitor.tx_analysis_port.connect(m_logger.log_item_fifo.analysis_export);
+      end
     end
   endfunction
 

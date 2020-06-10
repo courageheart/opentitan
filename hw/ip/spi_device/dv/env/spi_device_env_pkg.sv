@@ -7,12 +7,13 @@ package spi_device_env_pkg;
   import uvm_pkg::*;
   import top_pkg::*;
   import dv_utils_pkg::*;
+  import dv_lib_pkg::*;
   import csr_utils_pkg::*;
   import tl_agent_pkg::*;
   import spi_agent_pkg::*;
-  import dv_lib_pkg::*;
   import cip_base_pkg::*;
   import mem_model_pkg::*;
+  import spi_device_ral_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
@@ -21,9 +22,12 @@ package spi_device_env_pkg;
   // local parameters and types
   typedef enum {
     RxFifoFull,
-    RxFifoGtLevel,
+    RxFifoGeLevel,
     TxFifoLtLevel,
-    RxFwModeErr
+    RxFwModeErr,
+    RxFifoOverflow,
+    TxFifoUnderflow,
+    NumSpiDevIntr
   } spi_device_intr_e;
 
   typedef enum bit {
@@ -39,6 +43,7 @@ package spi_device_env_pkg;
   parameter uint SRAM_MSB                 = $clog2(SRAM_SIZE) - 1;
   parameter uint SRAM_PTR_PHASE_BIT       = SRAM_MSB + 1;
   parameter uint SRAM_WORD_SIZE           = 4;
+  parameter uint ASYNC_FIFO_SIZE          = 8;
 
   string msg_id = "spi_device_env_pkg";
 
@@ -103,7 +108,6 @@ package spi_device_env_pkg;
                                   ral.rxf_addr.limit.get_mirrored_value())
 
   // package sources
-  `include "spi_device_reg_block.sv"
   `include "spi_device_env_cfg.sv"
   `include "spi_device_env_cov.sv"
   `include "spi_device_virtual_sequencer.sv"

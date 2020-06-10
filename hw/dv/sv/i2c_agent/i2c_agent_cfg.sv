@@ -4,12 +4,15 @@
 
 class i2c_agent_cfg extends dv_base_agent_cfg;
 
-// interface handle used by driver, monitor & the sequencer, via cfg handle
-  virtual i2c_if vif;
+  bit en_monitor  = 1'b1; // enable monitor
+
+  timing_cfg_t    timing_cfg;
+  virtual i2c_if  vif;
 
   `uvm_object_utils_begin(i2c_agent_cfg)
+    `uvm_field_int(en_monitor,    UVM_DEFAULT)
   `uvm_object_utils_end
 
   `uvm_object_new
 
-endclass
+endclass : i2c_agent_cfg

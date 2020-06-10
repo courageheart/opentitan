@@ -7,31 +7,26 @@ description: "Earlgrey chip DV sim target"
 filesets:
   files_rtl:
     depend:
-      - lowrisc:systems:top_earlgrey:0.1
-      - lowrisc:ibex:ibex_tracer:0.1
-    files:
-      - ../rtl/top_earlgrey_asic.sv
-      - ../ip/xbar/dv/autogen/xbar_main_bind.sv
-    file_type: systemVerilogSource
+      - lowrisc:systems:top_earlgrey_asic
 
   files_dv:
     depend:
+      - lowrisc:ip:tlul
       - lowrisc:dv:chip_test
+      - lowrisc:dv:xbar_main_bind
+      - lowrisc:dv:xbar_peri_bind
+      - lowrisc:dv:xbar_test
+      - lowrisc:dv:xbar_macros
     files:
       - tb/chip_hier_macros.svh: {is_include_file: true}
+      - autogen/tb__xbar_connect.sv: {is_include_file: true}
+      - autogen/xbar_env_pkg__params.sv: {is_include_file: true}
       - tb/tb.sv
     file_type: systemVerilogSource
 
-parameters:
-  RVFI:
-    datatype: bool
-    paramtype: vlogdefine
 
 targets:
   sim:
-    parameters:
-      # The RISC-V Formal Interface (RVFI) is needed for the tracer
-      - RVFI=true
     toplevel: tb
     filesets:
       - files_rtl

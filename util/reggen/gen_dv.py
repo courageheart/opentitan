@@ -1,7 +1,7 @@
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
-"""Generate SystemVerilog designs from validated register json tree
+"""Generate SystemVerilog designs from validated register JSON tree
 """
 
 import logging as log
@@ -57,7 +57,7 @@ def gen_ral(block, outdir):
         filename=resource_filename('reggen', 'uvm_reg.sv.tpl'))
 
     # Generate pkg.sv with block name
-    with open(outdir + "/" + block.name + "_reg_block.sv", 'w') as fout:
+    with open(outdir + "/" + block.name + "_ral_pkg.sv", 'w') as fout:
         try:
             fout.write(
                 uvm_reg_tpl.render(block=block,

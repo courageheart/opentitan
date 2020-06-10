@@ -7,173 +7,215 @@
 package hmac_reg_pkg;
 
   // Param list
-  localparam int NumWords = 8;
+  parameter int NumWords = 8;
 
-////////////////////////////
-// Typedefs for multiregs //
-////////////////////////////
-
-typedef struct packed {
-  logic [31:0] q;
-} hmac_reg2hw_key_mreg_t;
-
-typedef struct packed {
-  logic [31:0] d;
-  logic de;
-} hmac_hw2reg_key_mreg_t;
-typedef struct packed {
-  logic [31:0] d;
-} hmac_hw2reg_digest_mreg_t;
-
-///////////////////////////////////////
-// Register to internal design logic //
-///////////////////////////////////////
-
-typedef struct packed {
-  struct packed {
+  ////////////////////////////
+  // Typedefs for registers //
+  ////////////////////////////
+  typedef struct packed {
     struct packed {
-      logic q; // [308]
+      logic        q;
     } hmac_done;
     struct packed {
-      logic q; // [307]
-    } fifo_full;
-    struct packed {
-      logic q; // [306]
-    } hmac_err;
-  } intr_state;
-  struct packed {
-    struct packed {
-      logic q; // [305]
-    } hmac_done;
-    struct packed {
-      logic q; // [304]
-    } fifo_full;
-    struct packed {
-      logic q; // [303]
-    } hmac_err;
-  } intr_enable;
-  struct packed {
-    struct packed {
-      logic q; // [302]
-      logic qe; // [301]
-    } hmac_done;
-    struct packed {
-      logic q; // [300]
-      logic qe; // [299]
-    } fifo_full;
-    struct packed {
-      logic q; // [298]
-      logic qe; // [297]
-    } hmac_err;
-  } intr_test;
-  struct packed {
-    struct packed {
-      logic q; // [296]
-    } hmac_en;
-    struct packed {
-      logic q; // [295]
-    } sha_en;
-    struct packed {
-      logic q; // [294]
-    } endian_swap;
-    struct packed {
-      logic q; // [293]
-    } digest_swap;
-  } cfg;
-  struct packed {
-    struct packed {
-      logic q; // [292]
-      logic qe; // [291]
-    } hash_start;
-    struct packed {
-      logic q; // [290]
-      logic qe; // [289]
-    } hash_process;
-  } cmd;
-  struct packed {
-    logic [31:0] q; // [288:257]
-    logic qe; // [256]
-  } wipe_secret;
-  hmac_reg2hw_key_mreg_t [7:0] key; // [255:0]
-} hmac_reg2hw_t;
-
-///////////////////////////////////////
-// Internal design logic to register //
-///////////////////////////////////////
-
-typedef struct packed {
-  struct packed {
-    struct packed {
-      logic d; // [631]
-      logic de; // [630]
-    } hmac_done;
-    struct packed {
-      logic d; // [629]
-      logic de; // [628]
-    } fifo_full;
-    struct packed {
-      logic d; // [627]
-      logic de; // [626]
-    } hmac_err;
-  } intr_state;
-  struct packed {
-    struct packed {
-      logic d; // [625]
+      logic        q;
     } fifo_empty;
     struct packed {
-      logic d; // [624]
+      logic        q;
+    } hmac_err;
+  } hmac_reg2hw_intr_state_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        q;
+    } hmac_done;
+    struct packed {
+      logic        q;
+    } fifo_empty;
+    struct packed {
+      logic        q;
+    } hmac_err;
+  } hmac_reg2hw_intr_enable_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        q;
+      logic        qe;
+    } hmac_done;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } fifo_empty;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } hmac_err;
+  } hmac_reg2hw_intr_test_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        q;
+      logic        qe;
+    } hmac_en;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } sha_en;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } endian_swap;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } digest_swap;
+  } hmac_reg2hw_cfg_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        q;
+      logic        qe;
+    } hash_start;
+    struct packed {
+      logic        q;
+      logic        qe;
+    } hash_process;
+  } hmac_reg2hw_cmd_reg_t;
+
+  typedef struct packed {
+    logic [31:0] q;
+    logic        qe;
+  } hmac_reg2hw_wipe_secret_reg_t;
+
+  typedef struct packed {
+    logic [31:0] q;
+    logic        qe;
+  } hmac_reg2hw_key_mreg_t;
+
+
+  typedef struct packed {
+    struct packed {
+      logic        d;
+      logic        de;
+    } hmac_done;
+    struct packed {
+      logic        d;
+      logic        de;
+    } fifo_empty;
+    struct packed {
+      logic        d;
+      logic        de;
+    } hmac_err;
+  } hmac_hw2reg_intr_state_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        d;
+    } hmac_en;
+    struct packed {
+      logic        d;
+    } sha_en;
+    struct packed {
+      logic        d;
+    } endian_swap;
+    struct packed {
+      logic        d;
+    } digest_swap;
+  } hmac_hw2reg_cfg_reg_t;
+
+  typedef struct packed {
+    struct packed {
+      logic        d;
+    } fifo_empty;
+    struct packed {
+      logic        d;
     } fifo_full;
     struct packed {
-      logic [4:0] d; // [623:619]
+      logic [4:0]  d;
     } fifo_depth;
-  } status;
-  struct packed {
-    logic [31:0] d; // [618:587]
-    logic de; // [586]
-  } err_code;
-  hmac_hw2reg_key_mreg_t [7:0] key; // [585:322]
-  hmac_hw2reg_digest_mreg_t [7:0] digest; // [321:66]
-  struct packed {
-    logic [31:0] d; // [65:34]
-    logic de; // [33]
-  } msg_length_lower;
-  struct packed {
-    logic [31:0] d; // [32:1]
-    logic de; // [0]
-  } msg_length_upper;
-} hmac_hw2reg_t;
+  } hmac_hw2reg_status_reg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+    logic        de;
+  } hmac_hw2reg_err_code_reg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+  } hmac_hw2reg_key_mreg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+  } hmac_hw2reg_digest_mreg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+    logic        de;
+  } hmac_hw2reg_msg_length_lower_reg_t;
+
+  typedef struct packed {
+    logic [31:0] d;
+    logic        de;
+  } hmac_hw2reg_msg_length_upper_reg_t;
+
+
+  ///////////////////////////////////////
+  // Register to internal design logic //
+  ///////////////////////////////////////
+  typedef struct packed {
+    hmac_reg2hw_intr_state_reg_t intr_state; // [320:318]
+    hmac_reg2hw_intr_enable_reg_t intr_enable; // [317:315]
+    hmac_reg2hw_intr_test_reg_t intr_test; // [314:309]
+    hmac_reg2hw_cfg_reg_t cfg; // [308:301]
+    hmac_reg2hw_cmd_reg_t cmd; // [300:297]
+    hmac_reg2hw_wipe_secret_reg_t wipe_secret; // [296:264]
+    hmac_reg2hw_key_mreg_t [7:0] key; // [263:0]
+  } hmac_reg2hw_t;
+
+  ///////////////////////////////////////
+  // Internal design logic to register //
+  ///////////////////////////////////////
+  typedef struct packed {
+    hmac_hw2reg_intr_state_reg_t intr_state; // [627:625]
+    hmac_hw2reg_cfg_reg_t cfg; // [624:617]
+    hmac_hw2reg_status_reg_t status; // [616:617]
+    hmac_hw2reg_err_code_reg_t err_code; // [616:617]
+    hmac_hw2reg_key_mreg_t [7:0] key; // [616:361]
+    hmac_hw2reg_digest_mreg_t [7:0] digest; // [360:105]
+    hmac_hw2reg_msg_length_lower_reg_t msg_length_lower; // [104:105]
+    hmac_hw2reg_msg_length_upper_reg_t msg_length_upper; // [104:105]
+  } hmac_hw2reg_t;
 
   // Register Address
-  parameter HMAC_INTR_STATE_OFFSET = 12'h 0;
-  parameter HMAC_INTR_ENABLE_OFFSET = 12'h 4;
-  parameter HMAC_INTR_TEST_OFFSET = 12'h 8;
-  parameter HMAC_CFG_OFFSET = 12'h c;
-  parameter HMAC_CMD_OFFSET = 12'h 10;
-  parameter HMAC_STATUS_OFFSET = 12'h 14;
-  parameter HMAC_ERR_CODE_OFFSET = 12'h 18;
-  parameter HMAC_WIPE_SECRET_OFFSET = 12'h 1c;
-  parameter HMAC_KEY0_OFFSET = 12'h 20;
-  parameter HMAC_KEY1_OFFSET = 12'h 24;
-  parameter HMAC_KEY2_OFFSET = 12'h 28;
-  parameter HMAC_KEY3_OFFSET = 12'h 2c;
-  parameter HMAC_KEY4_OFFSET = 12'h 30;
-  parameter HMAC_KEY5_OFFSET = 12'h 34;
-  parameter HMAC_KEY6_OFFSET = 12'h 38;
-  parameter HMAC_KEY7_OFFSET = 12'h 3c;
-  parameter HMAC_DIGEST0_OFFSET = 12'h 40;
-  parameter HMAC_DIGEST1_OFFSET = 12'h 44;
-  parameter HMAC_DIGEST2_OFFSET = 12'h 48;
-  parameter HMAC_DIGEST3_OFFSET = 12'h 4c;
-  parameter HMAC_DIGEST4_OFFSET = 12'h 50;
-  parameter HMAC_DIGEST5_OFFSET = 12'h 54;
-  parameter HMAC_DIGEST6_OFFSET = 12'h 58;
-  parameter HMAC_DIGEST7_OFFSET = 12'h 5c;
-  parameter HMAC_MSG_LENGTH_LOWER_OFFSET = 12'h 60;
-  parameter HMAC_MSG_LENGTH_UPPER_OFFSET = 12'h 64;
+  parameter logic [11:0] HMAC_INTR_STATE_OFFSET = 12'h 0;
+  parameter logic [11:0] HMAC_INTR_ENABLE_OFFSET = 12'h 4;
+  parameter logic [11:0] HMAC_INTR_TEST_OFFSET = 12'h 8;
+  parameter logic [11:0] HMAC_CFG_OFFSET = 12'h c;
+  parameter logic [11:0] HMAC_CMD_OFFSET = 12'h 10;
+  parameter logic [11:0] HMAC_STATUS_OFFSET = 12'h 14;
+  parameter logic [11:0] HMAC_ERR_CODE_OFFSET = 12'h 18;
+  parameter logic [11:0] HMAC_WIPE_SECRET_OFFSET = 12'h 1c;
+  parameter logic [11:0] HMAC_KEY0_OFFSET = 12'h 20;
+  parameter logic [11:0] HMAC_KEY1_OFFSET = 12'h 24;
+  parameter logic [11:0] HMAC_KEY2_OFFSET = 12'h 28;
+  parameter logic [11:0] HMAC_KEY3_OFFSET = 12'h 2c;
+  parameter logic [11:0] HMAC_KEY4_OFFSET = 12'h 30;
+  parameter logic [11:0] HMAC_KEY5_OFFSET = 12'h 34;
+  parameter logic [11:0] HMAC_KEY6_OFFSET = 12'h 38;
+  parameter logic [11:0] HMAC_KEY7_OFFSET = 12'h 3c;
+  parameter logic [11:0] HMAC_DIGEST0_OFFSET = 12'h 40;
+  parameter logic [11:0] HMAC_DIGEST1_OFFSET = 12'h 44;
+  parameter logic [11:0] HMAC_DIGEST2_OFFSET = 12'h 48;
+  parameter logic [11:0] HMAC_DIGEST3_OFFSET = 12'h 4c;
+  parameter logic [11:0] HMAC_DIGEST4_OFFSET = 12'h 50;
+  parameter logic [11:0] HMAC_DIGEST5_OFFSET = 12'h 54;
+  parameter logic [11:0] HMAC_DIGEST6_OFFSET = 12'h 58;
+  parameter logic [11:0] HMAC_DIGEST7_OFFSET = 12'h 5c;
+  parameter logic [11:0] HMAC_MSG_LENGTH_LOWER_OFFSET = 12'h 60;
+  parameter logic [11:0] HMAC_MSG_LENGTH_UPPER_OFFSET = 12'h 64;
 
   // Window parameter
-  parameter HMAC_MSG_FIFO_OFFSET = 12'h 800;
-  parameter HMAC_MSG_FIFO_SIZE   = 12'h 800;
+  parameter logic [11:0] HMAC_MSG_FIFO_OFFSET = 12'h 800;
+  parameter logic [11:0] HMAC_MSG_FIFO_SIZE   = 12'h 800;
 
   // Register Index
   typedef enum int {
@@ -206,7 +248,7 @@ typedef struct packed {
   } hmac_id_e;
 
   // Register width information to check illegal writes
-  localparam logic [3:0] HMAC_PERMIT [26] = '{
+  parameter logic [3:0] HMAC_PERMIT [26] = '{
     4'b 0001, // index[ 0] HMAC_INTR_STATE
     4'b 0001, // index[ 1] HMAC_INTR_ENABLE
     4'b 0001, // index[ 2] HMAC_INTR_TEST

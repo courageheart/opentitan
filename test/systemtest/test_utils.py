@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
@@ -232,7 +231,8 @@ def stream_fd_to_log(fd, logger, pattern, timeout=None):
     os.set_blocking(fd, False)
     line_of_output = b''
     while True:
-        if deadline != None and time.monotonic() > deadline:
+        curtime = time.monotonic()
+        if deadline != None and curtime > deadline:
             return None
 
         if line_of_output.endswith(b'\n'):
@@ -242,7 +242,7 @@ def stream_fd_to_log(fd, logger, pattern, timeout=None):
         # we wouldn't get anything out of it.
         if deadline != None:
             rlist, _, _ = select.select([fd], [], [],
-                                        deadline - time.monotonic())
+                                        deadline - curtime)
         else:
             rlist, _, _ = select.select([fd], [], [])
 
@@ -263,3 +263,12 @@ def stream_fd_to_log(fd, logger, pattern, timeout=None):
               return match
 
             line_of_output = b''
+
+# If logfile option was given, log all outputs to file.
+def setup_logfile(logger, logfile):
+    if logfile:
+        logger.debug("Logfile at %s" % (logfile))
+        logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(filename=logfile, mode='w')
+        fh.setLevel(logging.DEBUG)
+        logger.addHandler(fh)

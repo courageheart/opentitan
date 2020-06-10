@@ -11,9 +11,9 @@ title: "UART DV Plan"
   * Verify TileLink device protocol compliance with an SVA based testbench
 
 ## Current status
-* [Design & verification stage]({{< relref "doc/project/hw_dashboard" >}})
-  * [HW development stages]({{< relref "doc/project/hw_stages.md" >}})
-* DV regression results dashboard (link TBD)
+* [Design & verification stage]({{< relref "hw" >}})
+  * [HW development stages]({{< relref "doc/project/development_stages.md" >}})
+* [Simulation results](https://reports.opentitan.org/hw/ip/uart/dv/latest/results.html)
 
 ## Design features
 For detailed information on UART design features, please see the [UART design specification]({{< relref "hw/ip/uart/doc" >}}).
@@ -28,14 +28,14 @@ UART testbench has been constructed based on the
 ### Top level testbench
 Top level testbench is located at `hw/ip/uart/dv/tb/tb.sv`. It instantiates the UART DUT module `hw/ip/uart/rtl/uart.sv`.
 In addition, it instantiates the following interfaces, connects them to the DUT and sets their handle into `uvm_config_db`:
-* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs" >}})
 * [TileLink host interface]({{< relref "hw/dv/sv/tl_agent/README.md" >}})
 * UART IOs
-* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
+* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
 
 ### Common DV utility components
 The following utilities provide generic helper tasks and functions to perform activities that are common across the project:
-* [common_ifs]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [common_ifs]({{< relref "hw/dv/sv/common_ifs" >}})
 * [dv_utils_pkg]({{< relref "hw/dv/sv/dv_utils/README.md" >}})
 * [csr_utils_pkg]({{< relref "hw/dv/sv/csr_utils/README.md" >}})
 
@@ -55,9 +55,12 @@ TL host interface into UART device.
 ### UART agent
 [UART agent]({{< relref "hw/dv/sv/uart_agent/README.md" >}}) is used to drive and monitor UART items, which also provides basic coverage on
 data, parity, baud rate etc.
+These baud rates are supported: 9600, 115200, 230400, 1Mbps(1048576), 2Mbps(2097152)
 
-### RAL
-The UART RAL model is constructed using the [regtool.py script]({{< relref "util/reggen/README.md" >}}) and is placed at `env/uart_reg_block.sv`.
+### UVM RAL Model
+The UART RAL model is created with the [`ralgen`]({{< relref "hw/dv/tools/ralgen/README.md" >}}) FuseSoC generator script automatically when the simulation is at the build stage.
+
+It can be created manually (separately) by running `make` in the the `hw/` area.
 
 ### Stimulus strategy
 #### Test sequences
@@ -73,9 +76,9 @@ Some of the most commonly used tasks / functions are as follows:
 #### Functional coverage
 To ensure high quality constrained random stimulus, it is necessary to develop a functional coverage model.
 The following covergroups have been developed to prove that the test intent has been adequately met:
-* common covergroup for interrupts: Cover interrupt value, interrupt enable, intr_test, interrup pin
-* uart_cg in uart_agent:            Cover direction, uart data, en_parity, odd_parity and baud rate
-* fifo_level_cg:                    Cover all fifo level with fifo reset for both TX and RX
+* common covergroup for interrupts `hw/dv/sv/cip_lib/cip_base_env_cov.sv`: Cover interrupt value, interrupt enable, intr_test, interrup pin
+* uart_cg in uart_agent_cov `hw/dv/sv/uart_agent/uart_agent_cov.sv`:       Cover direction, uart data, en_parity, odd_parity and baud rate
+* fifo_level_cg `hw/ip/uart/dv/env/uart_env_cov.sv`:                       Cover all fifo level with fifo reset for both TX and RX
 
 ### Self-checking strategy
 #### Scoreboard
@@ -94,7 +97,7 @@ We are using our in-house developed [regression tool]({{< relref "hw/dv/tools/RE
 Please take a look at the link for detailed information on the usage, capabilities, features and known issues.
 Here's how to run a basic sanity test:
 ```console
-$ cd hw/ip/foo/dv
+$ cd hw/ip/uart/dv
 $ make TEST_NAME=uart_sanity
 ```
 

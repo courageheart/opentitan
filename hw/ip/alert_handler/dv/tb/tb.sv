@@ -14,95 +14,80 @@ module tb;
   `include "dv_macros.svh"
 
   wire clk, rst_n;
+  wire devmode;
   wire [NUM_MAX_INTERRUPTS-1:0] interrupts;
-  wire [NUM_MAX_ALERTS-1:0] alerts;
-  wire [NUM_MAX_ESC_SEV-1:0] esc_en;
+  wire [NUM_MAX_ESC_SEV-1:0]    esc_en;
   wire entropy;
 
   // interfaces
   clk_rst_if clk_rst_if(.clk(clk), .rst_n(rst_n));
   pins_if #(NUM_MAX_INTERRUPTS) intr_if(interrupts);
-  pins_if #(NUM_MAX_ALERTS) alerts_if(alerts);
-  pins_if #(NUM_MAX_ESC_SEV) esc_en_if(esc_en);
   pins_if #(1) entropy_if(entropy);
-  pins_if #(1) devmode_if();
+  pins_if #(1) devmode_if(devmode);
   tl_if tl_if(.clk(clk), .rst_n(rst_n));
+  alert_esc_if esc_device_if[alert_pkg::N_ESC_SEV](.clk(clk), .rst_n(rst_n));
+  alert_esc_if alert_host_if[alert_pkg::NAlerts](.clk(clk), .rst_n(rst_n));
+  alert_esc_probe_if probe_if[alert_pkg::N_ESC_SEV](.clk(clk), .rst_n(rst_n));
 
   // dut signals
-  logic [alert_pkg::NAlerts-1:0]    alert_p;
-  logic [alert_pkg::NAlerts-1:0]    alert_n;
-  logic [alert_pkg::NAlerts-1:0]    ack_p;
-  logic [alert_pkg::NAlerts-1:0]    ack_n;
-  logic [alert_pkg::NAlerts-1:0]    ping_p;
-  logic [alert_pkg::NAlerts-1:0]    ping_n;
+  prim_alert_pkg::alert_rx_t [alert_pkg::NAlerts-1:0] alert_rx;
+  prim_alert_pkg::alert_tx_t [alert_pkg::NAlerts-1:0] alert_tx;
 
-  logic [alert_pkg::N_ESC_SEV-1:0]  esc_p;
-  logic [alert_pkg::N_ESC_SEV-1:0]  esc_n;
-  logic [alert_pkg::N_ESC_SEV-1:0]  resp_p;
-  logic [alert_pkg::N_ESC_SEV-1:0]  resp_n;
+  prim_esc_pkg::esc_rx_t [alert_pkg::N_ESC_SEV-1:0] esc_rx;
+  prim_esc_pkg::esc_tx_t [alert_pkg::N_ESC_SEV-1:0] esc_tx;
 
-  // escalation sender duts
-  for (genvar k = 0; k < alert_pkg::NAlerts; k++) begin : gen_alert_tx
-    prim_alert_sender #(
-      .AsyncOn(alert_pkg::AsyncOn[k])
-    ) i_prim_alert_sender (
-      .clk_i    ( clk        ),
-      .rst_ni   ( rst_n      ),
-      .alert_i  ( alerts[k]  ),
-      .ping_pi  ( ping_p[k]  ),
-      .ping_ni  ( ping_n[k]  ),
-      .ack_pi   ( ack_p[k]   ),
-      .ack_ni   ( ack_n[k]   ),
-      .alert_po ( alert_p[k] ),
-      .alert_no ( alert_n[k] )
-    );
+  for (genvar k = 0; k < alert_pkg::NAlerts; k++) begin : gen_alert_if
+    assign alert_tx[k].alert_p = alert_host_if[k].alert_tx.alert_p;
+    assign alert_tx[k].alert_n = alert_host_if[k].alert_tx.alert_n;
+    assign alert_host_if[k].alert_rx.ack_p  = alert_rx[k].ack_p;
+    assign alert_host_if[k].alert_rx.ack_n  = alert_rx[k].ack_n;
+    assign alert_host_if[k].alert_rx.ping_p = alert_rx[k].ping_p;
+    assign alert_host_if[k].alert_rx.ping_n = alert_rx[k].ping_n;
+    initial begin
+      uvm_config_db#(virtual alert_esc_if)::set(null, $sformatf("*.env.alert_host_agent[%0d]", k),
+                                                "vif", alert_host_if[k]);
+    end
   end
 
+  for (genvar k = 0; k < alert_pkg::N_ESC_SEV; k++) begin : gen_esc_if
+    assign esc_rx[k].resp_p = esc_device_if[k].esc_rx.resp_p;
+    assign esc_rx[k].resp_n = esc_device_if[k].esc_rx.resp_n;
+    assign esc_device_if[k].esc_tx.esc_p = esc_tx[k].esc_p;
+    assign esc_device_if[k].esc_tx.esc_n = esc_tx[k].esc_n;
+    // TODO: add assertions to check the probed signal
+    assign probe_if[k].esc_en = dut.esc_sig_en[k];
+    initial begin
+      uvm_config_db#(virtual alert_esc_if)::set(null, $sformatf("*.env.esc_device_agent[%0d]", k),
+                                                "vif", esc_device_if[k]);
+      uvm_config_db#(virtual alert_esc_probe_if)::set(null,
+          $sformatf("*.env.esc_device_agent[%0d]", k), "probe_vif", probe_if[k]);
+    end
+  end
   // main dut
   alert_handler dut (
-    .clk_i                ( clk          ),
-    .rst_ni               ( rst_n        ),
-    .tl_i                 ( tl_if.h2d    ),
-    .tl_o                 ( tl_if.d2h    ),
-    .irq_o                ( interrupts[alert_pkg::N_CLASSES-1:0] ),
-    .crashdump_o          (              ),
-    .entropy_i            ( entropy      ),
-    .alert_pi             ( alert_p      ),
-    .alert_ni             ( alert_n      ),
-    .ack_po               ( ack_p        ),
-    .ack_no               ( ack_n        ),
-    .ping_po              ( ping_p       ),
-    .ping_no              ( ping_n       ),
-    .esc_po               ( esc_p        ),
-    .esc_no               ( esc_n        ),
-    .resp_pi              ( resp_p       ),
-    .resp_ni              ( resp_n       )
+    .clk_i                ( clk           ),
+    .rst_ni               ( rst_n         ),
+    .tl_i                 ( tl_if.h2d     ),
+    .tl_o                 ( tl_if.d2h     ),
+    .intr_classa_o        ( interrupts[0] ),
+    .intr_classb_o        ( interrupts[1] ),
+    .intr_classc_o        ( interrupts[2] ),
+    .intr_classd_o        ( interrupts[3] ),
+    .crashdump_o          (               ),
+    .entropy_i            ( entropy       ),
+    .alert_rx_o           ( alert_rx      ),
+    .alert_tx_i           ( alert_tx      ),
+    .esc_rx_i             ( esc_rx        ),
+    .esc_tx_o             ( esc_tx        )
   );
-
-  // escalation receiver duts
-  for (genvar k = 0; k < alert_pkg::N_ESC_SEV; k++) begin : gen_esc_rx
-    prim_esc_receiver i_prim_esc_receiver (
-      .clk_i    ( clk       ),
-      .rst_ni   ( rst_n     ),
-      .esc_en_o ( esc_en[k] ),
-      .resp_po  ( resp_p[k] ),
-      .resp_no  ( resp_n[k] ),
-      .esc_pi   ( esc_p[k]  ),
-      .esc_ni   ( esc_n[k]  )
-    );
-  end
 
   initial begin
     // drive clk and rst_n from clk_if
     clk_rst_if.set_active();
     uvm_config_db#(virtual clk_rst_if)::set(null, "*.env", "clk_rst_vif", clk_rst_if);
     uvm_config_db#(intr_vif)::set(null, "*.env", "intr_vif", intr_if);
-    uvm_config_db#(alerts_vif)::set(null, "*.env", "alerts_vif", alerts_if);
-    uvm_config_db#(esc_en_vif)::set(null, "*.env", "esc_en_vif", esc_en_if);
     uvm_config_db#(entropy_vif)::set(null, "*.env", "entropy_vif", entropy_if);
     uvm_config_db#(devmode_vif)::set(null, "*.env", "devmode_vif", devmode_if);
-    uvm_config_db#(tlul_assert_ctrl_vif)::set(null, "*.env", "tlul_assert_ctrl_vif",
-        dut.tlul_assert_device.tlul_assert_ctrl_if);
     uvm_config_db#(virtual tl_if)::set(null, "*.env.m_tl_agent*", "vif", tl_if);
     $timeformat(-12, 0, " ps", 12);
     run_test();

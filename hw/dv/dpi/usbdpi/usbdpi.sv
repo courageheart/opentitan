@@ -8,35 +8,34 @@
 // 0x01 -- monitor_usb (packet level)
 // 0x08 -- bit level
 
-module usbdpi
-  #(
+module usbdpi #(
   parameter string NAME = "usb0",
   parameter LOG_LEVEL = 1
-  )(
-  input  clk_i,
-  input  rst_ni,
-  input  clk_48MHz_i,
-  output dp_p2d,
-  input  dp_d2p,
-  input  dp_en_d2p,
-  output dn_p2d,
-  input  dn_d2p,
-  input  dn_en_d2p,
-  output sense_p2d,
-  input  pullup_d2p,
-  input  pullup_en_d2p
+)(
+  input  logic clk_i,
+  input  logic rst_ni,
+  input  logic clk_48MHz_i,
+  output logic dp_p2d,
+  input  logic dp_d2p,
+  input  logic dp_en_d2p,
+  output logic dn_p2d,
+  input  logic dn_d2p,
+  input  logic dn_en_d2p,
+  output logic sense_p2d,
+  input  logic pullup_d2p,
+  input  logic pullup_en_d2p
 );
   import "DPI-C" function
     chandle usbdpi_create(input string name, input int loglevel);
 
   import "DPI-C" function
-    void usbdpi_device_to_host(input chandle ctx, input [4:0] d2p);
+    void usbdpi_device_to_host(input chandle ctx, input bit [4:0] d2p);
 
   import "DPI-C" function
     void usbdpi_close(input chandle ctx);
 
   import "DPI-C" function
-    byte usbdpi_host_to_device(input chandle ctx, input [4:0] d2p);
+    byte usbdpi_host_to_device(input chandle ctx, input bit [4:0] d2p);
 
   chandle ctx;
 
@@ -53,17 +52,36 @@ module usbdpi
   logic       unused_dummy;
   logic       unused_clk = clk_i;
   logic       unused_rst = rst_ni;
+  logic       dp_int, dn_int;
 
   assign d2p = {dp_d2p, dp_en_d2p, dn_d2p, dn_en_d2p, pullup_d2p & pullup_en_d2p};
   always_ff @(posedge clk_48MHz_i) begin
-    automatic byte p2d = usbdpi_host_to_device(ctx, d2p);
-    dp_p2d <= p2d[2];
-    dn_p2d <= p2d[1];
-    sense_p2d <= p2d[0];
-    unused_dummy <= |p2d[7:3];
-    d2p_r <= d2p;
-    if (d2p_r != d2p) begin
-      usbdpi_device_to_host(ctx, d2p);
+    if (pullup_d2p && pullup_en_d2p) begin
+      automatic byte p2d = usbdpi_host_to_device(ctx, d2p);
+      dp_int <= p2d[2];
+      dn_int <= p2d[1];
+      sense_p2d <= p2d[0];
+      unused_dummy <= |p2d[7:3];
+      d2p_r <= d2p;
+      if (d2p_r != d2p) begin
+        usbdpi_device_to_host(ctx, d2p);
+      end
+    end else begin
+      dp_int <= 0;
+      dn_int <= 0;
+    end
+  end
+
+  always_comb begin : proc_data
+    if (dp_en_d2p) begin
+      dp_p2d = dp_d2p;
+    end else begin
+      dp_p2d = dp_int;
+    end
+    if (dn_en_d2p) begin
+      dn_p2d = dn_d2p;
+    end else begin
+      dn_p2d = dn_int;
     end
   end
 endmodule

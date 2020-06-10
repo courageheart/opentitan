@@ -10,9 +10,9 @@ title: "I2C DV Plan"
   * Verify TileLink device protocol compliance with an SVA based testbench
 
 ## Current status
-* [Design & verification stage]({{< relref "doc/project/hw_dashboard" >}})
-  * [HW development stages]({{< relref "doc/project/hw_stages.md" >}})
-* DV regression results dashboard (link TBD)
+* [Design & verification stage]({{< relref "hw" >}})
+  * [HW development stages]({{< relref "doc/project/development_stages.md" >}})
+* [Simulation results](https://reports.opentitan.org/hw/ip/i2c/dv/latest/results.html)
 
 ## Design features
 For detailed information on I2C design features, please see the
@@ -28,14 +28,14 @@ I2C testbench has been constructed based on the
 ### Top level testbench
 Top level testbench is located at `hw/ip/i2c/dv/tb/tb.sv`. It instantiates the I2C DUT module `hw/ip/i2c/rtl/i2c.sv`.
 In addition, it instantiates the following interfaces, connects them to the DUT and sets their handle into `uvm_config_db`:
-* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs" >}})
 * [TileLink host interface]({{< relref "hw/dv/sv/tl_agent/README.md" >}})
 * I2C IOs
-* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
+* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
 
 ### Common DV utility components
 The following utilities provide generic helper tasks and functions to perform activities that are common across the project:
-* [common_ifs]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [common_ifs]({{< relref "hw/dv/sv/common_ifs" >}})
 * [dv_utils_pkg]({{< relref "hw/dv/sv/dv_utils/README.md" >}})
 * [csr_utils_pkg]({{< relref "hw/dv/sv/csr_utils/README.md" >}})
 
@@ -54,10 +54,12 @@ which provides the ability to drive and independently monitor random traffic via
 TL host interface into I2C device.
 
 ### I2C agent
-[describe or provide link to I2C agent documentation]
+I2C agent is configured to work device mode and implemented as [reactive slave](https://www.verilab.com/files/mastering_reactive_slaves.pdf)
 
-### RAL
-The I2C RAL model is constructed using the [regtool.py script]({{< relref "util/reggen/README.md" >}}) and is placed at `env/i2c_reg_block.sv`.
+### UVM RAL Model
+The I2C RAL model is created with the [`ralgen`]({{< relref "hw/dv/tools/ralgen/README.md" >}}) FuseSoC generator script automatically when the simulation is at the build stage.
+
+It can be created manually (separately) by running `make` in the the `hw/` area.
 
 ### Stimulus strategy
 #### Test sequences

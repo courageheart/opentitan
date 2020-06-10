@@ -6,6 +6,7 @@ package csr_utils_pkg;
   // dep packages
   import uvm_pkg::*;
   import dv_utils_pkg::*;
+  import dv_base_reg_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
@@ -18,6 +19,7 @@ package csr_utils_pkg;
   string     msg_id                      = "csr_utils";
   bit        default_csr_blocking        = 1;
   bit        under_reset                 = 0;
+  int        max_outstanding_accesses    = 100;
 
   // csr field struct - hold field specific params
   typedef struct {
@@ -26,16 +28,6 @@ package csr_utils_pkg;
     uvm_reg_data_t  mask;
     uint            shift;
   } csr_field_s;
-
-  // csr exclusion indications
-  typedef enum bit[2:0] {
-    CsrNoExcl         = 3'b000, // no exclusions
-    CsrExclInitCheck  = 3'b001, // exclude csr from init val check
-    CsrExclWriteCheck = 3'b010, // exclude csr from write-read check
-    CsrExclCheck      = 3'b011, // exclude csr from init or write-read check
-    CsrExclWrite      = 3'b100, // exclude csr from write
-    CsrExclAll        = 3'b111  // exclude csr from init or write or writ-read check
-  } csr_excl_type_e;
 
   function automatic void increment_outstanding_access();
     outstanding_accesses++;
@@ -53,11 +45,17 @@ package csr_utils_pkg;
     outstanding_accesses = 0;
   endfunction
 
-  function automatic void reset_occurred();
+  // timeout may happen if we issue too many non-blocking accesses at once
+  // limit the nonblocking items to be up to max outstanding
+  task automatic wait_if_max_outstanding_accesses_reached(int max = max_outstanding_accesses);
+    wait(outstanding_accesses <= max);
+  endtask
+
+  function automatic void reset_asserted();
     under_reset = 1;
   endfunction
 
-  function automatic void reset_cleared();
+  function automatic void reset_deasserted();
     under_reset = 0;
   endfunction
 
@@ -72,17 +70,31 @@ package csr_utils_pkg;
   endfunction
 
   // Get all valid mem addr ranges - useful to check if incoming addr falls in the mem range.
-  function automatic void get_mem_addrs(input uvm_reg_block ral, ref mem_addr_s mem_addrs[$]);
+  function automatic void get_mem_addr_ranges(uvm_reg_block ral, ref addr_range_t mem_ranges[$]);
     uvm_mem mems[$];
     ral.get_memories(mems);
-    mems.delete();
     foreach (mems[i]) begin
-      mem_addr_s mem_addr;
-      mem_addr.start_addr = mems[i].get_address();
-      mem_addr.end_addr   = mem_addr.start_addr +
-                            mems[i].get_size() * mems[i].get_n_bytes() - 1;
-      mem_addrs.push_back(mem_addr);
+      addr_range_t mem_range;
+      mem_range.start_addr = mems[i].get_address();
+      mem_range.end_addr   = mem_range.start_addr +
+                             mems[i].get_size() * mems[i].get_n_bytes() - 1;
+      mem_ranges.push_back(mem_range);
     end
+  endfunction
+
+  // get mem object from address
+  function automatic uvm_mem get_mem_by_addr(uvm_reg_block ral, uvm_reg_addr_t addr);
+    uvm_mem mem;
+    addr[1:0] = 0;
+    mem = ral.default_map.get_mem_by_offset(addr);
+    `DV_CHECK_NE_FATAL(mem, null, $sformatf("Can't find any mem with addr 0x%0h", addr), msg_id)
+    return mem;
+  endfunction
+
+  // get mem access like RW, RO
+  function automatic string get_mem_access_by_addr(uvm_reg_block ral, uvm_reg_addr_t addr);
+    uvm_mem mem = get_mem_by_addr(ral, addr);
+    return mem.get_access();
   endfunction
 
   // This fucntion return mirrored value of reg/field of given RAL
@@ -193,7 +205,7 @@ package csr_utils_pkg;
         fork
           begin
             increment_outstanding_access();
-            csr.update(.status(status), .path(path), .map(map));
+            csr.update(.status(status), .path(path), .map(map), .prior(100));
             if (check == UVM_CHECK) begin
               `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
             end
@@ -214,14 +226,25 @@ package csr_utils_pkg;
                         input uvm_reg_data_t value,
                         input uvm_check_e    check = UVM_CHECK,
                         input uvm_path_e     path = UVM_DEFAULT_PATH,
-                        input  bit           blocking = default_csr_blocking,
+                        input bit            blocking = default_csr_blocking,
+                        input bit            backdoor = 0,
                         input uint           timeout_ns = default_timeout_ns,
+                        input bit            predict = 0,
                         input uvm_reg_map    map = null);
-    if (blocking) begin
+    if (backdoor) begin
+        csr_poke(csr, value, check);
+        if (predict) void'(csr.predict(.value(value), .kind(UVM_PREDICT_DIRECT)));
+    end else if (blocking) begin
       csr_wr_sub(csr, value, check, path, timeout_ns, map);
+      if (predict) void'(csr.predict(.value(value), .kind(UVM_PREDICT_WRITE)));
     end else begin
       fork
-        csr_wr_sub(csr, value, check, path, timeout_ns, map);
+        begin
+          csr_wr_sub(csr, value, check, path, timeout_ns, map);
+          // predict after csr_wr_sub, to ensure predict after enable register overwrite the locked
+          // registers' access information
+          if (predict) void'(csr.predict(.value(value), .kind(UVM_PREDICT_WRITE)));
+        end
       join_none
       // Add #0 to ensure that this thread starts executing before any subsequent call
       #0;
@@ -243,7 +266,7 @@ package csr_utils_pkg;
         fork
           begin
             increment_outstanding_access();
-            csr.write(.status(status), .value(value), .path(path), .map(map));
+            csr.write(.status(status), .value(value), .path(path), .map(map), .prior(100));
             if (check == UVM_CHECK) begin
               `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
             end
@@ -260,14 +283,30 @@ package csr_utils_pkg;
     join
   endtask
 
+  // backdoor write csr
+  task automatic csr_poke(input uvm_reg        csr,
+                          input uvm_reg_data_t value,
+                          input uvm_check_e    check = UVM_CHECK);
+    uvm_status_e  status;
+    string        msg_id = {csr_utils_pkg::msg_id, "::csr_poke"};
+
+    csr.poke(.status(status), .value(value));
+    if (check == UVM_CHECK) begin
+      `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
+    end
+  endtask
+
   task automatic csr_rd(input  uvm_object     ptr, // accept reg or field
                         output uvm_reg_data_t value,
                         input  uvm_check_e    check = UVM_CHECK,
                         input  uvm_path_e     path = UVM_DEFAULT_PATH,
                         input  bit            blocking = default_csr_blocking,
+                        input  bit            backdoor = 0,
                         input  uint           timeout_ns = default_timeout_ns,
                         input  uvm_reg_map    map = null);
-    if (blocking) begin
+    if (backdoor) begin
+        csr_peek(ptr, value, check);
+    end else if (blocking) begin
       csr_rd_sub(ptr, value, check, path, timeout_ns, map);
     end else begin
       fork
@@ -296,9 +335,11 @@ package csr_utils_pkg;
             increment_outstanding_access();
             csr_or_fld = decode_csr_or_field(ptr);
             if (csr_or_fld.field != null) begin
-              csr_or_fld.field.read(.status(status), .value(value), .path(path), .map(map));
+              csr_or_fld.field.read(.status(status), .value(value), .path(path), .map(map),
+                                    .prior(100));
             end else begin
-              csr_or_fld.csr.read(.status(status), .value(value), .path(path), .map(map));
+              csr_or_fld.csr.read(.status(status), .value(value), .path(path), .map(map),
+                                  .prior(100));
             end
             if (check == UVM_CHECK) begin
               `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
@@ -316,10 +357,41 @@ package csr_utils_pkg;
     join
   endtask
 
+  // backdoor read csr
+  // uvm_reg::peek() returns a 2-state value, directly get data from hdl path
+  task automatic csr_peek(input uvm_object      ptr,
+                          output uvm_reg_data_t value,
+                          input uvm_check_e     check = UVM_CHECK);
+    string      msg_id = {csr_utils_pkg::msg_id, "::csr_peek"};
+    csr_field_s csr_or_fld = decode_csr_or_field(ptr);
+    uvm_reg     csr = csr_or_fld.csr;
+
+    if (csr.has_hdl_path()) begin
+      uvm_hdl_path_concat paths[$];
+
+      csr.get_full_hdl_path(paths);
+      foreach (paths[0].slices[i]) begin
+        uvm_reg_data_t field_val;
+        if (uvm_hdl_read(paths[0].slices[i].path, field_val)) begin
+          if (check == UVM_CHECK) `DV_CHECK_EQ($isunknown(value), 0, "", error, msg_id)
+          value |= field_val << paths[0].slices[i].offset;
+        end else begin
+          `uvm_fatal(msg_id, $sformatf("uvm_hdl_read failed for %0s", csr.get_full_name()))
+        end
+      end
+    end else begin
+      `uvm_fatal(msg_id, $sformatf("No backdoor defined for %0s", csr.get_full_name()))
+    end
+
+    // if it's field, only return field value
+    if (csr_or_fld.field != null) value = get_field_val(csr_or_fld.field, value);
+  endtask
+
   task automatic csr_rd_check(input  uvm_object     ptr,
                               input  uvm_check_e    check = UVM_CHECK,
                               input  uvm_path_e     path = UVM_DEFAULT_PATH,
                               input  bit            blocking = default_csr_blocking,
+                              input  bit            backdoor = 0,
                               input  uint           timeout_ns = default_timeout_ns,
                               input  bit            compare = 1'b1,
                               input  bit            compare_vs_ral = 1'b0,
@@ -337,23 +409,23 @@ package csr_utils_pkg;
             uvm_reg_data_t  exp;
             string          msg_id = {csr_utils_pkg::msg_id, "::csr_rd_check"};
 
-            increment_outstanding_access();
             csr_or_fld = decode_csr_or_field(ptr);
-            // get mirrored value before the read
+
+            csr_rd(.ptr(ptr), .value(obs), .check(check), .path(path), .backdoor(backdoor),
+                   .blocking(1), .timeout_ns(timeout_ns), .map(map));
+
+            // get mirrored value after read to make sure the read reg access is updated
             if (csr_or_fld.field != null) begin
               exp = csr_or_fld.field.get_mirrored_value();
             end else begin
               exp = csr_or_fld.csr.get_mirrored_value();
             end
-            csr_rd(.ptr(ptr), .value(obs), .check(check), .path(path),
-                   .blocking(1), .timeout_ns(timeout_ns), .map(map));
             if (compare && !under_reset) begin
               obs = obs & compare_mask;
               exp = (compare_vs_ral ? exp : compare_value) & compare_mask;
               `DV_CHECK_EQ(obs, exp, {"Regname: ", ptr.get_full_name(), " ", err_msg},
                     error, msg_id)
             end
-            decrement_outstanding_access();
           end
         join_none
         if (blocking) wait fork;
@@ -363,7 +435,14 @@ package csr_utils_pkg;
     join
   endtask
 
+  // task to read all csrs and check against ral expected value. Mainly used after reset
+  task automatic read_and_check_all_csrs(input uvm_reg_block ral);
+    uvm_reg ral_csrs[$];
+    ral.get_registers(ral_csrs);
+    ral_csrs.shuffle();
 
+    foreach (ral_csrs[i]) csr_rd_check(.ptr(ral_csrs[i]), .compare_vs_ral(1));
+  endtask
 
   // poll a csr or csr field continuously until it reads the expected value.
   task automatic csr_spinwait(input uvm_object      ptr,
@@ -374,6 +453,7 @@ package csr_utils_pkg;
                               input uint            spinwait_delay_ns = 0,
                               input uint            timeout_ns = default_spinwait_timeout_ns,
                               input compare_op_e    compare_op = CompareOpEq,
+                              input bit             backdoor = 0,
                               input uvm_verbosity   verbosity = UVM_HIGH);
     fork
       begin : isolation_fork
@@ -382,11 +462,12 @@ package csr_utils_pkg;
         string          msg_id = {csr_utils_pkg::msg_id, "::csr_spinwait"};
 
         csr_or_fld = decode_csr_or_field(ptr);
+        if (backdoor && spinwait_delay_ns == 0) spinwait_delay_ns = 1;
         fork
-          while (1) begin
+          while (!under_reset) begin
             if (spinwait_delay_ns) #(spinwait_delay_ns * 1ns);
             csr_rd(.ptr(ptr), .value(read_data), .check(check), .path(path),
-                   .blocking(1), .map(map));
+                   .blocking(1), .map(map), .backdoor(backdoor));
             `uvm_info(msg_id, $sformatf("ptr %0s == 0x%0h",
                                         ptr.get_full_name(), read_data), verbosity)
             case (compare_op)
@@ -445,7 +526,7 @@ package csr_utils_pkg;
         fork
           begin
             increment_outstanding_access();
-            ptr.read(.status(status), .offset(offset), .value(data), .map(map));
+            ptr.read(.status(status), .offset(offset), .value(data), .map(map), .prior(100));
             if (check == UVM_CHECK) begin
               `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
             end
@@ -494,7 +575,7 @@ package csr_utils_pkg;
         fork
           begin
             increment_outstanding_access();
-            ptr.write(.status(status), .offset(offset), .value(data), .map(map));
+            ptr.write(.status(status), .offset(offset), .value(data), .map(map), .prior(100));
             if (check == UVM_CHECK) begin
               `DV_CHECK_EQ(status, UVM_IS_OK, "", error, msg_id)
             end
@@ -511,8 +592,25 @@ package csr_utils_pkg;
     join
   endtask : mem_wr_sub
 
+  // Fields could be excluded from writes & reads - This function zeros out the excluded fields
+  function automatic uvm_reg_data_t get_mask_excl_fields(uvm_reg csr,
+                                                         csr_excl_type_e csr_excl_type,
+                                                         csr_test_type_e csr_test_type,
+                                                         csr_excl_item m_csr_excl_item);
+    uvm_reg_field flds[$];
+    csr.get_fields(flds);
+    get_mask_excl_fields = '1;
+    foreach (flds[i]) begin
+      if (m_csr_excl_item.is_excl(flds[i], csr_excl_type, csr_test_type)) begin
+        csr_field_s fld_params = decode_csr_or_field(flds[i]);
+        `uvm_info(msg_id, $sformatf("Skipping field %0s due to %0s exclusion",
+                                  flds[i].get_full_name(), csr_excl_type.name()), UVM_MEDIUM)
+        get_mask_excl_fields &= ~(fld_params.mask << fld_params.shift);
+      end
+    end
+  endfunction
+
   // sources
-  `include "csr_excl_item.sv"
   `include "csr_seq_lib.sv"
 
 endpackage

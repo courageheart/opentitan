@@ -6,12 +6,20 @@ package spi_agent_pkg;
   // dep packages
   import uvm_pkg::*;
   import dv_utils_pkg::*;
+  import dv_lib_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
   `include "dv_macros.svh"
 
   // local types
+  // transaction type
+  typedef enum {
+    SpiTransNormal,    // normal SPI trans
+    SpiTransSckNoCsb,  // bad SPI trans with clk but no sb
+    SpiTransCsbNoScb   // bad SPI trans with csb but no clk
+  } spi_trans_type_e;
+
   // sck edge type - used by driver and monitor to wait for the right edge based on CPOL / CPHA
   typedef enum {
     LeadingEdge,
@@ -23,6 +31,7 @@ package spi_agent_pkg;
 
   // package sources
   `include "spi_agent_cfg.sv"
+  `include "spi_agent_cov.sv"
   `include "spi_item.sv"
   `include "spi_monitor.sv"
   `include "spi_driver.sv"

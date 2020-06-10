@@ -6,7 +6,7 @@
 // Interface: clk_rst_if
 // Generic clock and reset interface for clock events in various utilities
 // It also generates o_clk and o_rst_n signals for driving clk and rst_n in the tb. The advantage is
-// clk nad rst_n can be completely controller in course of the simulation.
+// clk and rst_n can be completely controlled in course of the simulation.
 // This interface provides methods to set freq/period, wait for clk/rst_n, apply rst_n among other
 // things. See individual method descriptions below.
 // inout clk
@@ -35,13 +35,14 @@ interface clk_rst_if #(
   // clk params
   bit clk_gate      = 1'b0;   // clk gate signal
   int clk_period_ps = 20_000; // 50MHz default
-  int clk_freq_mhz  = 50;     // 50MHz default
+  real clk_freq_mhz = 50;     // 50MHz default
   int duty_cycle    = 50;     // 50% default
   int max_jitter_ps = 1000;   // 1ns default
   bit recompute     = 1'b1;   // compute half periods when period/freq/duty are changed
   int clk_hi_ps;              // half period hi in ps
   int clk_lo_ps;              // half period lo in ps
   int jitter_chance_pc = 0;   // jitter chance in percentage on clock edge - disabled by default
+  bit sole_clock = 1'b0;      // if true, this is the only clock in the system
 
   // use IfName as a part of msgs to indicate which clk_rst_vif instance
   string msg_id = {"clk_rst_if::", IfName};
@@ -69,7 +70,7 @@ interface clk_rst_if #(
   endtask
 
   // set the clk frequency in mhz
-  function automatic void set_freq_mhz(int freq_mhz);
+  function automatic void set_freq_mhz(real freq_mhz);
     clk_freq_mhz = freq_mhz;
     clk_period_ps = 1000_000 / clk_freq_mhz;
     recompute = 1'b1;
@@ -91,7 +92,7 @@ interface clk_rst_if #(
     end
   endfunction
 
-  // set the clk frequency in ns
+  // set the clk period in ns
   function automatic void set_period_ns(int period_ps);
     clk_period_ps = period_ps;
     clk_freq_mhz  = 1000_000 / clk_period_ps;
@@ -129,6 +130,13 @@ interface clk_rst_if #(
     jitter_chance_pc = jitter_chance;
   endfunction
 
+  // Set whether this is the only clock in the system. If true, various bits of timing randomisation
+  // are disabled. If there's no other clock to (de)synchronise with, this should not weaken the
+  // test at all.
+  function automatic void set_sole_clock(bit is_sole = 1'b1);
+    sole_clock = is_sole;
+  endfunction
+
   // start / ungate the clk
   task automatic start_clk(bit wait_for_posedge = 1'b0);
     clk_gate = 1'b0;
@@ -159,6 +167,11 @@ interface clk_rst_if #(
     end
   endfunction
 
+  // can be used to override clk/rst pins, e.g. at the beginning of the simulation
+  task automatic drive_rst_pin(logic val = 1'b0);
+    o_rst_n = val;
+  endtask
+
   // apply reset with specified scheme
   // TODO make this enum?
   // rst_n_scheme
@@ -167,16 +180,17 @@ interface clk_rst_if #(
   // 2 - async assert, async dessert
   // 3 - clk gated when reset asserted
   // Note: for power on reset, please ensure pre_reset_dly_clks is set to 0
-  task automatic apply_reset(int pre_reset_dly_clks  = 0,
-                             int reset_width_clks    = $urandom_range(4, 20),
-                             int post_reset_dly_clks = 0,
-                             int rst_n_scheme        = 1);
+  // TODO #2338 issue workaround - $urandom call moved from default argument value to function body 
+  task automatic apply_reset(int pre_reset_dly_clks   = 0,
+                             integer reset_width_clks = 'x,
+                             int post_reset_dly_clks  = 0,
+                             int rst_n_scheme         = 1);
     int dly_ps;
-    dly_ps = $urandom_range(0, clk_period_ps / 2);
+    if ($isunknown(reset_width_clks)) reset_width_clks = $urandom_range(4, 20);
+    dly_ps = $urandom_range(0, clk_period_ps);
     wait_clks(pre_reset_dly_clks);
     case (rst_n_scheme)
       0: begin : sync_assert_deassert
-        if (pre_reset_dly_clks == 0) wait_clks(1);
         o_rst_n <= 1'b0;
         wait_clks(reset_width_clks);
         o_rst_n <= 1'b1;
@@ -201,9 +215,27 @@ interface clk_rst_if #(
 
   // clk gen
   initial begin
-    // start driving clk only after the first por reset assertion
-    wait_for_reset(.wait_posedge(1'b0));
-    #1ps o_clk = 1'b0;
+    // start driving clk only after the first por reset assertion. The fork/join means that we'll
+    // wait a whole number of clock periods, which means it's possible for the clock to synchronise
+    // with the "expected" timestamps.
+    bit done = 1'b0;
+    fork
+      begin
+        wait_for_reset(.wait_posedge(1'b0));
+
+        // Wait a short time after reset before starting to drive the clock.
+        #1ps;
+        o_clk = 1'b0;
+
+        done = 1'b1;
+      end
+      while (!done) #(clk_period_ps * 1ps);
+    join
+
+    // If there might be multiple clocks in the system, wait another (randomised) short time to
+    // desynchronise.
+    if (!sole_clock) #($urandom_range(0, clk_period_ps) * 1ps);
+
     forever begin
       if (recompute) begin
         clk_hi_ps = clk_period_ps * duty_cycle / 100;

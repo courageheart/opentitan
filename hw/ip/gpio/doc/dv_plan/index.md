@@ -10,9 +10,9 @@ title: "GPIO DV Plan"
   * Verify TileLink device protocol compliance with an SVA based testbench
 
 ## Current status
-* [Design & verification stage]({{< relref "doc/project/hw_dashboard" >}})
-  * [HW development stages]({{< relref "doc/project/hw_stages.md" >}})
-* DV regression results dashboard (link TBD)
+* [Design & verification stage]({{< relref "hw" >}})
+  * [HW development stages]({{< relref "doc/project/development_stages.md" >}})
+* [Simulation results](https://reports.opentitan.org/hw/ip/gpio/dv/latest/results.html)
 
 ## Design features
 For detailed information on GPIO design features, please see the [GPIO design specification]({{< relref "hw/ip/gpio/doc" >}}).
@@ -26,14 +26,14 @@ GPIO testbench has been constructed based on the [CIP testbench architecture]({{
 ### Top level testbench
 Top level testbench is located at `hw/ip/gpio/dv/tb/tb.sv`. It instantiates the GPIO DUT module `hw/ip/gpio/rtl/gpio.sv`.
 In addition, it instantiates the following interfaces and sets their handle into `uvm_config_db`:
-* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [Clock and reset interface]({{< relref "hw/dv/sv/common_ifs" >}})
 * [TileLink host interfac]({{< relref "hw/dv/sv/tl_agent/README.md" >}})
-* GPIO IOs ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
-* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs/README.md" >}}))
+* GPIO IOs ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
+* Interrupts ([`pins_if`]({{< relref "hw/dv/sv/common_ifs" >}}))
 
 ### Common DV utility components
 The following utilities provide generic helper tasks and functions to perform activities that are common across the project:
-* [common_ifs]({{< relref "hw/dv/sv/common_ifs/README.md" >}})
+* [common_ifs]({{< relref "hw/dv/sv/common_ifs" >}})
 * [dv_utils_pkg]({{< relref "hw/dv/sv/dv_utils/README.md" >}})
 * [csr_utils_pkg]({{< relref "hw/dv/sv/csr_utils/README.md" >}})
 
@@ -46,8 +46,10 @@ parameter uint FILTER_CYCLES = 16;
 ### TL_agent
 GPIO testbench instantiates (handled in CIP base env) [tl_agent]({{< relref "hw/dv/sv/tl_agent/README.md" >}}) which provides the ability to drive and independently monitor random traffic via TL host interface into GPIO device.
 
-### RAL
-The GPIO RAL model is constructed using the [regtool.py script]({{< relref "util/reggen/README.md" >}}) and is placed at `env/gpio_reg_block.sv`.
+### UVM RAL Model
+The GPIO RAL model is created with the [`ralgen`]({{< relref "hw/dv/tools/ralgen/README.md" >}}) FuseSoC generator script automatically when the simulation is at the build stage.
+
+It can be created manually (separately) by running `make` in the the `hw/` area.
 
 ### Stimulus strategy
 #### Test sequences
@@ -98,7 +100,7 @@ Any CSR read transaction would check actual read data against predicted value.  
 #### Assertions
 * TLUL assertions: The `tb/gpio_bind.sv` binds the `tlul_assert` [assertions]({{< relref "hw/ip/tlul/doc/TlulProtocolChecker.md" >}}) to the IP to ensure TileLink interface protocol compliance.
 * Unknown checks on DUT outputs: The RTL has assertions to ensure all outputs are initialized to known values after coming out of reset
-* `intrGpioKnown`: Checks that GPIO interrupt pins do not have any unknowns
+* `IntrGpioKnown`: Checks that GPIO interrupt pins do not have any unknowns
 * `CioGpioEnOKnown`: Checks that GPIO output does not have any unknowns
 * `CioGpioOKnown`: Checks that GPIO output enable does not have any unknowns
 

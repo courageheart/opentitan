@@ -14,22 +14,23 @@
 #  lowrisc_systems_top_earlgrey_nexysvideo_0.1.splice.bit
 set -e
 
-BUILD_DIR=build-fpga
-TARGET_PREFIX="$BUILD_DIR/sw/device/boot_rom/boot_rom"
-#TARGET_PREFIX="sw/${BUILD_DIR}/rom"
+. util/build_consts.sh
+
+TARGET_PREFIX="sw/device/boot_rom/boot_rom_fpga_nexysvideo"
+TARGET="${DEV_BIN_DIR}/${TARGET_PREFIX}"
 FPGA_BUILD_DIR=build/lowrisc_systems_top_earlgrey_nexysvideo_0.1/synth-vivado/
 FPGA_BIT_NAME=lowrisc_systems_top_earlgrey_nexysvideo_0.1
 
-./meson_init.sh -f
-ninja -C "$BUILD_DIR" sw/device/boot_rom/boot_rom.bin
+./meson_init.sh
+ninja -C "$DEV_BIN_DIR" "${TARGET_PREFIX}.bin"
 
-srec_cat ${TARGET_PREFIX}.bin -binary -offset 0x0 -o ${TARGET_PREFIX}.brammem \
+srec_cat "${TARGET}.bin" -binary -offset 0x0 -o "${TARGET}.brammem" \
   -vmem -Output_Block_Size 4;
 
-util/fpga/addr4x.py -i ${TARGET_PREFIX}.brammem -o ${TARGET_PREFIX}.mem
+util/fpga/addr4x.py -i "${TARGET}.brammem" -o "${TARGET}.mem"
 
 updatemem -force --meminfo util/fpga/bram_load.mmi \
-  --data ${TARGET_PREFIX}.mem \
+  --data "${TARGET}.mem" \
   --bit "${FPGA_BUILD_DIR}/${FPGA_BIT_NAME}.bit"  --proc dummy \
   --out "${FPGA_BUILD_DIR}/${FPGA_BIT_NAME}.splice.bit"
 

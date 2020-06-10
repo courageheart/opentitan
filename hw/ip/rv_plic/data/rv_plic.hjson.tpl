@@ -5,7 +5,7 @@
 <% import math %>\
 # RV_PLIC register template
 #
-# Parameter (given by python tool)
+# Parameter (given by Python tool)
 #  - src:    Number of Interrupt Sources
 #  - target: Number of Targets that handle interrupt requests
 #  - prio:   Max value of interrupt priorities
@@ -40,6 +40,8 @@
         fields: [
           { bits: "0", name: "P", desc: "Interrupt Pending of Source" }
         ],
+        tags: [// IP is driven by intr_src, cannot auto-predict
+               "excl:CsrNonInitTests:CsrExclCheck"],
       }
     },
     { multireg: {
@@ -87,7 +89,8 @@
       ],
     }
     { name: "CC${i}",
-      desc: "Claim interrupt by read, complete interrupt by write for Target ${i}. Value read/written is interrupt ID. Reading a value of 0 means no pending interrupts.",
+      desc: '''Claim interrupt by read, complete interrupt by write for Target ${i}.
+      Value read/written is interrupt ID. Reading a value of 0 means no pending interrupts.''',
       swaccess: "rw",
       hwaccess: "hrw",
       hwext: "true",
@@ -96,9 +99,12 @@
       fields: [
         { bits: "${(src).bit_length()-1}:0" }
       ],
+      tags: [// CC register value is related to IP
+             "excl:CsrNonInitTests:CsrExclCheck"],
     }
     { name: "MSIP${i}",
-      desc: "msip for Hart ${i}. Write 1 to here asserts software interrupt for Hart msip_o[${i}], write 0 to clear",
+      desc: '''msip for Hart ${i}.
+      Write 1 to here asserts software interrupt for Hart msip_o[${i}], write 0 to clear.''',
       swaccess: "rw",
       hwaccess: "hro",
       fields: [

@@ -6,10 +6,14 @@ package uart_agent_pkg;
   // dep packages
   import uvm_pkg::*;
   import dv_utils_pkg::*;
+  import dv_lib_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
   `include "dv_macros.svh"
+
+  // 1 start + 8 data + 1 stop
+  parameter uint NUM_UART_XFER_BITS_WO_PARITY = 10;
 
   // local types
   typedef enum bit {
@@ -51,6 +55,7 @@ package uart_agent_pkg;
   `include "uart_monitor.sv"
   `include "uart_driver.sv"
   `include "uart_sequencer.sv"
+  `include "uart_logger.sv"
   `include "uart_agent.sv"
   `include "uart_seq_list.sv"
 

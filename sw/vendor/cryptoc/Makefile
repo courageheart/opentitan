@@ -1,41 +1,64 @@
-# Copyright lowRISC contributors.
-# Licensed under the Apache License, Version 2.0, see LICENSE for details.
-# SPDX-License-Identifier: Apache-2.0
-#
-# Generate a baremetal application for the microcontroller
+# Copyright 2016 The Chromium OS Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
-LIB_NAME     = cryptoc
-DIF_SRCS     = sha256.c
-ARCH         = rv32imc
-# ARCH = rv32im # to disable compressed instructions
+obj ?= ./build
+CROSS_COMPILE ?=
+CC ?= $(CROSS_COMPILE)gcc
+AR ?= $(CROSS_COMPILE)ar
 
-RV_TOOLS    ?= /tools/riscv/bin/
+SOURCES = hmac.c
+SOURCES += p256.c
+SOURCES += p256_ec.c
+SOURCES += p256_ecdsa.c
+SOURCES += p256_prng.c
+SOURCES += sha.c
+SOURCES += sha256.c
+ifeq ($(CONFIG_UPTO_SHA512),y)
+SOURCES += sha384.c
+SOURCES += sha512.c
+endif
+SOURCES += util.c
 
-CC          := ${RV_TOOLS}/riscv32-unknown-elf-gcc
-CFLAGS      ?= -Wall -g -Os -march=$(ARCH) -mabi=ilp32 -static -mcmodel=medany \
-	       -fvisibility=hidden -nostdlib -nostartfiles
-
-ifeq ($(SIM),1)
-  CFLAGS    += -DSIMULATION
+# Use V=1 for verbose output
+ifeq ($(V),)
+Q := @
+else
+Q :=
 endif
 
-AR          := $(subst gcc,ar,$(wordlist 1,1,$(CC)))
-ARFLAGS     ?= -cvr
+CFLAGS += -Iinclude
+CFLAGS += -Wall -Werror
+CFLAGS += -DTHIRD_PARTY
+ifeq ($(CONFIG_UPTO_SHA512),y)
+CFLAGS += -DSHA512_SUPPORT
+endif
 
-OBJS        := ${DIF_SRCS:.c=.o}
-DEPS         = $(OBJS:%.o=%.d)
+OBJS := $(patsubst %.c,$(obj)/%.o,$(SOURCES))
+DEPS := $(patsubst %.c,$(obj)/%.d,$(SOURCES))
 
-OUTFILES     = lib$(LIB_NAME).a
+# This is the default target
+$(obj)/libcryptoc.a: $(OBJS)
+	@echo "  AR      $(notdir $@)"
+	$(Q)$(AR) scr $@ $^
 
-$(OUTFILES): $(OBJS)
-	     $(AR) $(ARFLAGS) $@ $(OBJS)
+# Special target which allows to trigger re-compiling of all sources without
+# linking a library.
+objs: $(OBJS)
 
-all: $(OUTFILES)
+$(obj):
+	@echo "  MKDIR   $(obj)"
+	$(Q)mkdir -p $(obj)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -MMD -c $(INCS) -o $@ $<
+$(obj)/%.d $(obj)/%.o: %.c | $(obj)
+	@echo "  CC      $(notdir $<)"
+	$(Q)$(CC) $(CFLAGS) -c -MMD -MF $(basename $@).d -o $(basename $@).o $<
 
--include $(DEPS)
-
+.PHONY: clean
 clean:
-	$(RM) *.o *.d $(OUTFILES)
+	@echo "  RM      $(obj)"
+	$(Q)rm -rf $(obj)
+
+ifneq ($(MAKECMDGOALS),clean)
+-include $(DEPS)
+endif

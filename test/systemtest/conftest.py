@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright lowRISC contributors.
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
@@ -22,6 +21,7 @@ def pytest_addoption(parser):
     parser.addoption("--uart_timeout", action="store", default="60")
     parser.addoption("--fpga_uart", action="store", default="")
     parser.addoption("--spiflash", action="store", default="")
+    parser.addoption("--log", action="store", default="")
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_exception_interact(node, call, report):
@@ -29,23 +29,23 @@ def pytest_exception_interact(node, call, report):
     try:
         if not report.failed:
             return
-        if not 'tmpdir' in node.funcargs:
+        if not 'tmp_path' in node.funcargs:
             return
     except:
         return
 
-    tmpdir = str(node.funcargs['tmpdir'])
-    print("\n\n")
-    print("================= DUMP OF ALL TEMPORARY FILES =================")
+    tmp_path = str(node.funcargs['tmp_path'])
+    logging.debug("================= DUMP OF ALL TEMPORARY FILES =================")
 
-    for f in os.listdir(tmpdir):
-        f_abs = os.path.join(tmpdir, f)
+    for f in os.listdir(tmp_path):
+        f_abs = os.path.join(tmp_path, f)
         if not os.path.isfile(f_abs):
             continue
-        print("vvvvvvvvvvvvvvvvvvvv {} vvvvvvvvvvvvvvvvvvvv".format(f))
+        logging.debug("vvvvvvvvvvvvvvvvvvvv {} vvvvvvvvvvvvvvvvvvvv".format(f))
         with open(f_abs, 'r') as fp:
-            print(fp.read())
-        print("^^^^^^^^^^^^^^^^^^^^ {} ^^^^^^^^^^^^^^^^^^^^\n\n".format(f))
+            for line in fp.readlines():
+                logging.debug(line.rstrip())
+        logging.debug("^^^^^^^^^^^^^^^^^^^^ {} ^^^^^^^^^^^^^^^^^^^^".format(f))
 
 
 @pytest.fixture(scope="session")
@@ -124,4 +124,22 @@ def spiflash(pytestconfig):
     """Return the path to the spiflash executable."""
     path = Path(pytestconfig.getoption('spiflash')).resolve()
     assert path.is_file()
+    return path
+
+@pytest.fixture(scope="session")
+def logfile(pytestconfig):
+    """Return path to logfile."""
+    log = pytestconfig.getoption('log')
+    if not log:
+        return
+    # The strict option is only availabe on python 3.6
+    # CI currently uses >=3.5.2
+    # Turns out however even not using resolve doesn't work.
+    # The logging function in 3.5 uses os.path.isabs to check whether
+    # path is absolute and does not accept POSIXPATH objects
+    # path = Path(log).resolve(strict=False)
+    # assert not path.is_dir()
+
+    path = os.path.abspath(log)
+    assert not os.path.isdir(path)
     return path

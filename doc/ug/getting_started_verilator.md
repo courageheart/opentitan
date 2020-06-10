@@ -5,6 +5,8 @@
 Verilator is a cycle-accurate simulation tool.
 It translates synthesizable Verilog code into a simulation program in C++, which is then compiled and executed.
 
+<!-- TODO: Switch all calls to fusesoc and the Verilated system to refer to Meson, once it supports fusesoc. -->
+
 ## Prerequisites
 
 _Make sure you followed the install instructions to [prepare the system]({{< relref "install_instructions#system-preparation" >}}) and to install the [software development tools]({{< relref "doc/ug/install_instructions#software-development" >}}) and [Verilator]({{< relref "install_instructions#verilator" >}})._
@@ -24,30 +26,27 @@ By default, the system will first execute out of ROM and then jump to flash.
 A program needs to be built for each until ROM functionality for code download is ready.
 
 For that purpose compile the demo program with "simulation" settings, which adjusts the frequencies to better match the simulation speed.
-In the instructions below, `SW_DIR` is a requirement argument, while `SW_BUILD_DIR` is not a required argument.
-If `SW_BUILD_DIR` argument is not supplied, the default location of the of output files are in `SW_DIR`
-Please see [SW build flow]({{< relref "sw/device/doc/sw_build_flow" >}}) for more details.
+For more information on building software targets refer to the [Software Getting Started Guide]({{< relref "getting_started_sw.md" >}}).
 
 ```console
 $ cd $REPO_TOP
-$ make -C sw/device SIM=1 SW_DIR=boot_rom SW_BUILD_DIR=sim_boot_rom clean all
-$ make -C sw/device SIM=1 SW_DIR=examples/hello_world \
-  SW_BUILD_DIR=sim_hello_world clean all
+$ ./meson_init.sh
+$ ninja -C build-out all
 ```
 
 Now the simulation can be run.
-The program listed after `--rominit` and `--flashinit` are loaded into the system's respective memories and start executing immediately.
+The programs listed after `--meminit` are loaded into the system's specified memory and execution is started immediately.
 
 ```console
 $ cd $REPO_TOP
 $ build/lowrisc_systems_top_earlgrey_verilator_0.1/sim-verilator/Vtop_earlgrey_verilator \
-  --rominit=sw/device/sim_boot_rom/rom.vmem \
-  --flashinit=sw/device/sim_hello_world/sw.vmem
+  --meminit=rom,build-bin/sw/device/boot_rom/boot_rom_sim_verilator.elf \
+  --meminit=flash,build-bin/sw/device/examples/hello_world/hello_world_sim_verilator.elf
 ```
 
 To stop the simulation press CTRL-c.
 
-## Interacting with the simulated UART
+## Interact with the simulated UART
 
 The simulation contains code to create a virtual UART port.
 When starting the simulation you should see a message like
@@ -72,16 +71,41 @@ Note that `screen` will only show output that has been generated after `screen` 
 
 You can exit `screen` (in the default configuration) by pressing `CTRL-a k` and confirm with `y`.
 
-## See GPIO output
-
-The simulation includes a DPI module to send all GPIO outputs to a POSIX FIFO file.
-The changing output can be observed with
+If everything is working correctly you should expect to see text like
+the following from the virtual UART (replacing `/dev/pts/11` with the reported
+device):
 
 ```console
-$ cat gpio0
+$ cat /dev/pts/11
+I00000 boot_rom.c:35] Version:    opentitan-snapshot-20191101-1-1182-g2aedf641
+Build Date: 2020-05-13, 15:04:09
+
+I00001 boot_rom.c:44] Boot ROM initialisation has completed, jump into flash!
+I00000 hello_world.c:30] Hello World!
+I00001 hello_world.c:31] Built at: May 13 2020, 15:27:31
+I00002 demos.c:17] Watch the LEDs!
+I00003 hello_world.c:44] Try out the switches on the board
+I00004 hello_world.c:45] or type anything into the console window.
+I00005 hello_world.c:46] The LEDs show the ASCII code of the last character.
 ```
 
-Passing input is currently not supported.
+## Interact with GPIO
+
+The simulation includes a DPI module to map general-purpose I/O (GPIO) pins to two POSIX FIFO files: one for input, and one for output.
+Observe the `gpio0-read` file for outputs:
+
+```console
+$ cat gpio0-read
+```
+
+To drive input pins write to the `gpio0-write` file.
+A command consists of the desired state: `h` for high, and `l` for low, and the decimal pin number.
+Multiple commands can be issued by separating them with a single space.
+
+```console
+$ echo 'h09 l31' > gpio0-write  # Pull the pin 9 high, and pin 31 low.
+```
+
 
 ## Connect with OpenOCD to the JTAG port and use GDB
 
@@ -98,12 +122,9 @@ $ /tools/openocd/bin/openocd -s util/openocd -f board/lowrisc-earlgrey-verilator
 To connect GDB use the following command (noting it needs to be altered to point to the sw binary in use).
 
 ```console
-$ riscv32-unknown-elf-gdb -ex "target extended-remote :3333" -ex "info reg" sw/device/sim_hello_world/sw.elf
+$ riscv32-unknown-elf-gdb -ex "target extended-remote :3333" -ex "info reg" \
+  build-bin/sw/device/examples/hello_world/hello_world_sim_verilator.elf
 ```
-
-Note that debug support is not yet mature (see https://github.com/lowRISC/opentitan/issues/574).
-In particular GDB cannot set breakpoints as it can't write to the (emulated) flash memory.
-HW breakpoint support is planned for Ibex to allow breakpointing code in flash.
 
 You can also run the debug compliance test suite built into OpenOCD.
 
@@ -111,6 +132,7 @@ You can also run the debug compliance test suite built into OpenOCD.
 $ cd $REPO_TOP
 $ /tools/openocd/bin/openocd -s util/openocd -f board/lowrisc-earlgrey-verilator.cfg -c 'init; riscv test_compliance; shutdown'
 ```
+
 ## SPI device test interface
 
 The simulation contains code to monitor the SPI bus and provide a master interface to allow interaction with the `spi_device`.
@@ -145,11 +167,10 @@ The SPI monitor output is written to a file.
 It may be monitored with `tail -f` which conveniently notices when the file is truncated on a new run, so does not need restarting between simulations.
 The output consists of a textual "waveform" representing the SPI signals.
 
-## DPI Source
+## Software execution traces
 
-The I/O interfaces described above are implemented using the DPI interface to Verilator.
-The code for these is stored in the repo at `hw/dv/dpi` with a sub-directory for each module.
-There should be a fusesoc `.core` file in each sub-directory.
+All executed instructions in the loaded software are logged to the file `trace_core_00000000.log`.
+The columns in this file are tab separated; change the tab width in your editor if the columns don't appear clearly, or open the file in a spreadsheet application.
 
 ## Generating waveforms
 
@@ -158,6 +179,9 @@ Tracing slows down the simulation by roughly factor of 1000.
 
 ```console
 $ cd $REPO_TOP
-$ build/lowrisc_systems_top_earlgrey_verilator_0.1/sim-verilator/Vtop_earlgrey_verilator --meminit=sw/device/examples/hello_world/sw.vmem --trace
+$ build/lowrisc_systems_top_earlgrey_verilator_0.1/sim-verilator/Vtop_earlgrey_verilator \
+  --meminit=rom,build-bin/sw/device/boot_rom/boot_rom_sim_verilator.elf \
+  --meminit=flash,build-bin/sw/device/examples/hello_world/hello_world_sim_verilator.elf \
+  --trace
 $ gtkwave sim.fst
 ```

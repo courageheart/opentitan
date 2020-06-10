@@ -5,7 +5,8 @@
 """
 import logging as log
 
-from .validate import *
+from reggen.validate import val_types
+from .validate import root
 
 doc_intro = """
 
@@ -78,7 +79,7 @@ Field | Kind | Type | Description
 
 
 def selfdoc(heading, cmd=""):
-    # heading : markdown header depth
+    # heading : Markdown header depth
     # value type
     outstr = doc_intro.format(cmd)
 

@@ -4,12 +4,15 @@
 //
 // Generic synchronous fifo for use in a variety of devices.
 
+`include "prim_assert.sv"
+
 module prim_fifo_sync #(
   parameter int unsigned Width       = 16,
   parameter bit Pass                 = 1'b1, // if == 1 allow requests to pass through empty FIFO
   parameter int unsigned Depth       = 4,
+  // derived parameter
   localparam int unsigned DepthWNorm = $clog2(Depth+1),
-  localparam int unsigned DepthW     = (DepthWNorm == 0) ? 1 : DepthWNorm // derived parameter
+  localparam int unsigned DepthW     = (DepthWNorm == 0) ? 1 : DepthWNorm
 ) (
   input                   clk_i,
   input                   rst_ni,
@@ -46,7 +49,6 @@ module prim_fifo_sync #(
 
   // Normal FIFO construction
   end else begin : gen_normal_fifo
-    `ASSERT_INIT(paramCheckDepthW, DepthW == $clog2(Depth+1))
 
     // consider Depth == 1 case when $clog2(1) == 0
     localparam int unsigned PTRV_W    = $clog2(Depth) + ~|$clog2(Depth);
@@ -110,7 +112,7 @@ module prim_fifo_sync #(
 
     // the generate blocks below are needed to avoid lint errors due to array indexing
     // in the where the fifo only has one storage element
-    logic [Width-1:0] storage [0:Depth-1];
+    logic [Depth-1:0][Width-1:0] storage;
     logic [Width-1:0] storage_rdata;
     if (Depth == 1) begin : gen_depth_eq1
       assign storage_rdata = storage[0];
@@ -137,8 +139,17 @@ module prim_fifo_sync #(
       assign empty = fifo_empty;
     end
 
-    `ASSERT(depthShallNotExceedParamDepth, !empty |-> depth <= DepthW'(Depth), clk_i, !rst_ni)
+    `ASSERT(depthShallNotExceedParamDepth, !empty |-> depth <= DepthW'(Depth))
   end // block: gen_normal_fifo
 
+
+  //////////////////////
+  // Known Assertions //
+  //////////////////////
+
+  `ASSERT(DataKnown_A, rvalid |-> !$isunknown(rdata))
+  `ASSERT_KNOWN(DepthKnown_A, depth)
+  `ASSERT_KNOWN(RvalidKnown_A, rvalid)
+  `ASSERT_KNOWN(WreadyKnown_A, wready)
 
 endmodule

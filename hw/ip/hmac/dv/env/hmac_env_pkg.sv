@@ -9,10 +9,12 @@ package hmac_env_pkg;
   import dv_utils_pkg::*;
   import csr_utils_pkg::*;
   import tl_agent_pkg::*;
+  import alert_esc_agent_pkg::*;
   import cryptoc_dpi_pkg::*;
-  import dv_lib_pkg::*;
+  import dv_base_reg_pkg::*;
   import cip_base_pkg::*;
   import test_vectors_pkg::*;
+  import hmac_ral_pkg::*;
 
   // macro includes
   `include "uvm_macros.svh"
@@ -31,10 +33,12 @@ package hmac_env_pkg;
   parameter uint32 HMAC_MSG_PROCESS_CYCLES   = 65;
   // 80 cycles for hmac key padding
   parameter uint32 HMAC_KEY_PROCESS_CYCLES   = 80;
+  // 1 cycles to write a msg word to hmac_msg_fifo
+  parameter uint32 HMAC_WR_WORD_CYCLE        = 1;
 
   typedef enum {
     HmacDone,
-    HmacMsgFifoFull,
+    HmacMsgFifoEmpty,
     HmacErr
   } hmac_intr_e;
 
@@ -56,10 +60,13 @@ package hmac_env_pkg;
     HashProcess
   } hmac_cmd_e;
 
-  typedef enum {
-    NoError,
-    SwPushMsgWhenShaDisabled,
-    SwHashStartWhenShaDisabled
+  typedef enum bit [TL_DW-1:0] {
+    NoError                    = 32'h 0000_0000,
+    SwPushMsgWhenShaDisabled   = 32'h 0000_0001,
+    SwHashStartWhenShaDisabled = 32'h 0000_0002,
+    SwUpdateSecretKeyInProcess = 32'h 0000_0003,
+    SwHashStartWhenActive      = 32'h 0000_0004,
+    SwPushMsgWhenIdle          = 32'h 0000_0005
   } err_code_e;
 
   typedef class hmac_env_cfg;
@@ -70,7 +77,6 @@ package hmac_env_pkg;
   // functions
 
   // package sources
-  `include "hmac_reg_block.sv"
   `include "hmac_env_cfg.sv"
   `include "hmac_env_cov.sv"
   `include "hmac_scoreboard.sv"

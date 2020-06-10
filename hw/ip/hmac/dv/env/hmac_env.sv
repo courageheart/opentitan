@@ -11,11 +11,14 @@ class hmac_env extends cip_base_env #(.CFG_T               (hmac_env_cfg),
 
   function void build_phase(uvm_phase phase);
     super.build_phase(phase);
-    // get vifs
-    if (!uvm_config_db#(d2h_a_ready_vif)::get(this, "", "d2h_a_ready_vif",
-        cfg.d2h_a_ready_vif)) begin
-      `uvm_fatal(get_full_name(), "failed to get d2h_a_ready_vif from uvm_config_db")
-    end
+  endfunction
+
+  virtual function void end_of_elaboration_phase(uvm_phase phase);
+    dv_base_mem mem;
+    super.end_of_elaboration_phase(phase);
+    // hmac mem supports partial write, set it after ral model is locked
+    `downcast(mem, get_mem_by_addr(cfg.ral, cfg.csr_base_addr + HMAC_MSG_FIFO_BASE))
+    mem.set_mem_partial_write_support(1);
   endfunction
 
 endclass

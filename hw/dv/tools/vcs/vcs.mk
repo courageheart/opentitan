@@ -1,11 +1,8 @@
-####################################################################################################
-## Copyright lowRISC contributors.                                                                ##
-## Licensed under the Apache License, Version 2.0, see LICENSE for details.                       ##
-## SPDX-License-Identifier: Apache-2.0                                                            ##
-####################################################################################################
-## Makefile option groups that can be enabled by test Makefile / command line.                    ##
-## These are generic set of option groups that apply to all testbenches.                          ##
-####################################################################################################
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Makefile option groups that can be enabled by test Makefile / command line.
+# These are generic set of option groups that apply to all testbenches.
 # Simulator too specific options
 # Mandatory items to set (these are used by rules.mk):
 # SIMCC       - Simulator compiler used to build / elaborate the bench
@@ -13,7 +10,7 @@
 
 SIMCC       := vcs
 SIMX        ?= ${BUILD_DIR}/simv
-SIM_SETUP   ?= ${MAKE_ROOT}/vcs/vcs_fsdb.tcl
+SIM_SETUP   ?= ${MAKE_ROOT}/vcs/vcs.tcl
 
 # set standard build options
 BUILD_OPTS  += -sverilog -full64 -licqueue -timescale=1ns/1ps -kdb
@@ -29,6 +26,14 @@ BUILD_OPTS  += +warn=noUII-L
 BUILD_OPTS  += +warn=SV-NFIVC
 # option below is required for $error / $fatal system calls
 BUILD_OPTS  += -assert svaext
+# Force DPI-C compilation in C99 mode
+BUILD_OPTS  += -CFLAGS "--std=c99"
+# Without this magic LDFLAGS argument below, we get compile time errors with
+# VCS on Google Linux machines that look like this:
+# .../libvcsnew.so: undefined reference to `snpsReallocFunc'
+# .../libvcsnew.so: undefined reference to `snpsCheckStrdupFunc'
+# .../libvcsnew.so: undefined reference to `snpsGetMemBytes'
+BUILD_OPTS  += -LDFLAGS "-Wl,--no-as-needed"
 
 # set standard run options
 RUN_OPTS    += -licqueue
@@ -88,6 +93,13 @@ ifeq (${VCS_COV},1)
   RUN_OPTS    += -cm_name ${TEST_NAME}_${RUN_LOC}_${SEED}
   # Don't dump all the coverage assertion attempts at the end of simulation
   RUN_OPTS    += -assert nopostproc
+endif
+
+# Enable XPROP
+XPROP ?= 1
+ifeq (${XPROP},1)
+  VCS_XPROP_CFG_FILE ?= ${MAKE_ROOT}/vcs/xprop.cfg
+  BUILD_OPTS         += -xprop=${VCS_XPROP_CFG_FILE}
 endif
 
 # Coverage analyze/report options

@@ -1,30 +1,44 @@
-####################################################################################################
-## Copyright lowRISC contributors.                                                                ##
-## Licensed under the Apache License, Version 2.0, see LICENSE for details.                       ##
-## SPDX-License-Identifier: Apache-2.0                                                            ##
-####################################################################################################
-## Entry point test Makefile forr building and running tests.                                     ##
-## These are generic set of option groups that apply to all testbenches.                          ##
-## This flow requires the following options to be set:                                            ##
-## DV_DIR       - current dv directory that contains the test Makefile                            ##
-## DUT_TOP      - top level dut module name                                                       ##
-## TB_TOP       - top level tb module name                                                        ##
-## DOTF         - .f file used for compilation                                                    ##
-## COMPILE_KEY  - compile option set                                                              ##
-## TEST_NAME    - name of the test to run - this is supplied on the command line                  ##
-####################################################################################################
+# Copyright lowRISC contributors.
+# Licensed under the Apache License, Version 2.0, see LICENSE for details.
+# SPDX-License-Identifier: Apache-2.0
+# Entry point test Makefile for building and running tests.
+# These are generic set of option groups that apply to all testbenches.
+# This flow requires the following options to be set:
+# DV_DIR       - current dv directory that contains the test Makefile
+# DUT_TOP      - top level dut module name
+# TB_TOP       - top level tb module name
+# DOTF         - .f file used for compilation
+# COMPILE_KEY  - compile option set
+# TEST_NAME    - name of the test to run - this is supplied on the command line
 DV_DIR          := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-export DUT_TOP  := top_earlgrey_asic
+export DUT_TOP  := top_earlgrey
 export TB_TOP   := tb
 FUSESOC_CORE    := lowrisc:dv:chip_sim:0.1
 COMPILE_KEY     ?= default
-TOPS            := ${TB_TOP}
-####################################################################################################
-##                     A D D    I N D I V I D U A L    T E S T S    B E L O W                     ##
-####################################################################################################
+TOPS            := ${TB_TOP} xbar_main_bind
+
+# Override RAL generation here
+RAL_PKG_NAME    ?= chip
+RAL_TOOL_OPTS   += --top
+
+# Common build options.
+# Enable the RISC-V Formal Interface (RVFI) for the ibex tracer.
+ifeq (${EN_IBEX_TRACE},1)
+  BUILD_OPTS      += +define+RVFI=1
+endif
+# Use generic implementations of prim modules.
+BUILD_OPTS      += +define+PRIM_DEFAULT_IMPL=prim_pkg::ImplGeneric
+
+##########################################################
+# A D D    I N D I V I D U A L    T E S T S    B E L O W #
+##########################################################
 TEST_NAME       ?= chip_sanity
 UVM_TEST        ?= chip_base_test
 UVM_TEST_SEQ    ?= chip_base_vseq
+
+# TODO don't check TLUL completion at the end of sim, current sim may complete before TL
+# transaction is completed
+RUN_OPTS        += +disable_assert_final_checks
 
 ifeq (${TEST_NAME},chip_sanity)
   SW_DIR         = examples/hello_world
@@ -85,8 +99,8 @@ ifeq (${TEST_NAME},chip_csr_aliasing)
 endif
 
 
-####################################################################################################
-## Include the tool Makefile below                                                                ##
-## Dont add anything else below it!                                                               ##
-####################################################################################################
+####################################
+# Include the tool Makefile below  #
+# Dont add anything else below it! #
+####################################
 include ${DV_DIR}/../../dv/tools/Makefile

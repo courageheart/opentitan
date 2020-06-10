@@ -189,6 +189,30 @@ Some examples:
 * **task cfg_interrupts, check_interrupts**: All interrupt CSRs are standardized
   according to the comportability spec, which allows us to create common tasks
   to turn on / off interrupts as well as check them.
+* **task run_tl_errors_vseq**: This task will test all kinds of TileLink error
+  cases, including unmapped address error, protocol error, memory access error
+  etc. All the items sent in this task will trigger d_error and won't change the
+  CSR/memory value.
+* **task run_stress_all_with_rand_reset_vseq**: This task runs 3 parallel threads,
+  which are ip_stress_all_vseq, run_tl_errors_vseq and reset sequence. After
+  reset occurs, the other threads will be killed and then all the CSRs will be read
+  for check. This task runs multiple iterations to ensure DUT won't be broken after
+  reset and TL errors.
+  To ensure the reset functionality works correctly, user will have to disable
+  any internal reset from the stress_all sequence. Below is an example of
+  disabling internal reset in `hmac_stress_all_vseq.sv`:
+* **task run_same_csr_outstanding_vseq**: This task tests the same CSR with
+  non-blocking accesses as the regular CSR sequences don't cover that due to
+  limitation of uvm_reg.
+* **task run_mem_partial_access_vseq**: This task tests the partial access to the
+  memories by randomizing mask, size, and the 2 LSB bits of the address. It also runs
+  with non-blocking access enabled.
+  ```
+  // randomly trigger internal dut_init reset sequence
+  // disable any internal reset if used in stress_all_with_rand_reset vseq
+  if (do_dut_init) hmac_vseq.do_dut_init = $urandom_range(0, 1);
+  else hmac_vseq.do_dut_init = 0;
+  ```
 
 This class is type parameterized with the env cfg class type `CFG_T`, ral class type
 `RAL_T` and the virtual sequencer class type `VIRTUAL_SEQUENCER_T` so that the

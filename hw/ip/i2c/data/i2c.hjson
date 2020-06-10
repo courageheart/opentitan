@@ -3,26 +3,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 { name: "i2c"
-  clock_primary: "clk_fixed"
+  clock_primary: "clk_i"
   bus_device: "tlul"
   bus_host: "none"
   // INPUT pins
-  available_input_list: [
-    { name: "sda_rx", desc: "Serial input data bit" }
-    { name: "scl_rx", desc: "Serial input clock bit" }
-  ]
-  // OUTPUT pins
-  available_output_list: [
-    { name: "sda_tx", desc: "Serial output data bit" }
-    { name: "scl_tx", desc: "Serial output clock bit" }
+  available_inout_list: [
+    { name: "sda", desc: "Serial input data bit" }
+    { name: "scl", desc: "Serial input clock bit" }
   ]
   // INTERRUPT pins
   interrupt_list: [
     { name: "fmt_watermark"
-      desc: "raised when the FMT FIFO depth falls below the lowwater mark."
+      desc: "raised when the FMT FIFO depth falls below the low watermark."
     }
     { name: "rx_watermark"
-      desc: "raised if the RX FIFO is past the highwater mark."
+      desc: "raised if the RX FIFO is past the high watermark."
     }
     { name: "fmt_overflow"
       desc: "raised if the FMT FIFO has overflowed."
@@ -60,7 +55,7 @@
           resval: "0"
           name: "ENABLEHOST"
           desc: '''
-	        Enable Host I2C functionality
+                Enable Host I2C functionality
                 '''
         }
       ]
@@ -68,13 +63,12 @@
     { name:     "STATUS"
       desc:     "I2C live status register"
       swaccess: "ro"
-      hwaccess: "hrw"
+      hwaccess: "hwo"
       hwext:    "true"
-      hwre:     "true"
       fields: [
         { bits: "0"
           name: "FMTFULL"
-          desc: "TX buffer is full"
+          desc: "FMT buffer is full"
         }
         { bits: "1"
           name: "RXFULL"
@@ -85,7 +79,7 @@
           desc: "FMT FIFO is empty"
           resval: "1"
         }
-	{ bits: "5"
+        { bits: "5"
           name: "RXEMPTY"
           desc: "RX FIFO is empty"
           resval: "1"
@@ -97,10 +91,12 @@
         }
         { bits: "4"
           name: "TARGETIDLE"
-          desc: "Target functionality is idle No Target transaction is in progress"
+          desc: "Target functionality is idle. No Target transaction is in progress"
           resval: "1"
         }
       ]
+      tags: [// Updated by the hw. Exclude from write-checks.
+             "excl:CsrNonInitTests:CsrExclWriteCheck"]
     }
     { name: "RDATA"
       desc: "I2C read data"
@@ -111,6 +107,8 @@
       fields: [
         {bits: "7:0"}
       ]
+      tags: [// Updated by the hw. Exclude from init and write-checks.
+             "excl:CsrAllTests:CsrExclCheck"]
     }
     { name: "FDATA"
       desc: "I2C Format Data"
@@ -124,12 +122,12 @@
         }
         { bits: "8"
           name: "START"
-	  desc: "Issue a START condition before transmitting BYTE."
+          desc: "Issue a START condition before transmitting BYTE."
         }
         { bits: "9"
           name: "STOP"
           desc: "Issue a STOP condition after this operation"
-	}
+        }
         { bits: "10"
           name: "READ"
           desc: "Read BYTE bytes from I2C. (256 if BYTE==0)"
@@ -229,6 +227,8 @@
           desc: "Current fill level of RX fifo"
         }
       ]
+      tags: [// Updated by the hw. Exclude from write-checks.
+             "excl:CsrNonInitTests:CsrExclWriteCheck"]
     }
     { name: "OVRD"
       desc: "I2C override control register"
@@ -268,6 +268,8 @@
                 '''
         }
       ]
+      tags: [// Affected by IO pins - exclude from init and write checks.
+             "excl:CsrAllTests:CsrExclCheck"]
     }
 
     { name: "TIMING0"

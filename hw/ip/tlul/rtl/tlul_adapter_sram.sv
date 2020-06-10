@@ -9,6 +9,9 @@
  *   it means that aliasing can happen if target slave size in TL-UL crossbar is bigger
  *   than SRAM size
  */
+
+`include "prim_assert.sv"
+
 module tlul_adapter_sram #(
   parameter int SramAw      = 12,
   parameter int SramDw      = 32, // Current version supports TL-UL width only
@@ -70,6 +73,10 @@ module tlul_adapter_sram #(
   logic reqfifo_rvalid, reqfifo_rready;
   req_t reqfifo_wdata,  reqfifo_rdata;
 
+  logic [top_pkg::TL_DBW-1:0] maskfifo_wdata, maskfifo_rdata;
+  logic maskfifo_wvalid, maskfifo_wready;
+  logic maskfifo_rready;
+
   logic rspfifo_wvalid, rspfifo_wready;
   logic rspfifo_rvalid, rspfifo_rready;
   rsp_t rspfifo_wdata,  rspfifo_rdata;
@@ -80,10 +87,10 @@ module tlul_adapter_sram #(
   logic rd_vld_error;
   logic tlul_error;     // Error from `tlul_err` module
 
-  logic a_ack, d_ack, unused_sram_ack;
+  logic a_ack, d_ack, sram_ack;
   assign a_ack    = tl_i.a_valid & tl_o.a_ready ;
   assign d_ack    = tl_o.d_valid & tl_i.d_ready ;
-  assign unused_sram_ack = req_o        & gnt_i ;
+  assign sram_ack = req_o        & gnt_i ;
 
   // Valid handling
   logic d_valid, d_error;
@@ -121,16 +128,17 @@ module tlul_adapter_sram #(
 
   assign tl_o = '{
       d_valid  : d_valid ,
-      d_opcode : (reqfifo_rdata.op != OpRead) ? AccessAck : AccessAckData ,
+      d_opcode : (d_valid && reqfifo_rdata.op != OpRead) ? AccessAck : AccessAckData,
       d_param  : '0,
-      d_size   : reqfifo_rdata.size,
-      d_source : reqfifo_rdata.source,
+      d_size   : (d_valid) ? reqfifo_rdata.size : '0,
+      d_source : (d_valid) ? reqfifo_rdata.source : '0,
       d_sink   : 1'b0,
-      d_data   : rspfifo_rdata.data,
+      d_data   : (d_valid && rspfifo_rvalid && reqfifo_rdata.op == OpRead)
+                 ? rspfifo_rdata.data : '0,
       d_user   : '0,
-      d_error  : d_error,
+      d_error  : d_valid && d_error,
 
-      a_ready  : (gnt_i | error_internal) & reqfifo_wready
+      a_ready  : (gnt_i | error_internal) & reqfifo_wready & maskfifo_wready
   };
 
   // a_ready depends on the FIFO full condition and grant from SRAM (or SRAM arbiter)
@@ -140,20 +148,23 @@ module tlul_adapter_sram #(
   //    Generate request only when no internal error occurs. If error occurs, the request should be
   //    dropped and returned error response to the host. So, error to be pushed to reqfifo.
   //    In this case, it is assumed the request is granted (may cause ordering issue later?)
-  assign req_o    = reqfifo_wready & tl_i.a_valid & ~error_internal;
-  assign we_o     = (tl_i.a_opcode == PutFullData || tl_i.a_opcode == PutPartialData) ? 1'b1 : 1'b0;
-  assign addr_o   = tl_i.a_address[DataBitWidth+:SramAw];
-  assign wdata_o  = tl_i.a_data;
+  assign req_o    = tl_i.a_valid & reqfifo_wready & ~error_internal;
+  assign we_o     = tl_i.a_valid & logic'(tl_i.a_opcode inside {PutFullData, PutPartialData});
+  assign addr_o   = (tl_i.a_valid) ? tl_i.a_address[DataBitWidth+:SramAw] : '0;
 
   `ASSERT_INIT(TlUlEqualsToSramDw, top_pkg::TL_DW == SramDw)
 
   // Convert byte mask to SRAM bit mask.
+  logic [top_pkg::TL_DW-1:0] rmask;
   always_comb begin
     for (int i = 0 ; i < top_pkg::TL_DW/8 ; i++) begin
-      wmask_o[8*i+:8] = {8{tl_i.a_mask[i]}};
+      wmask_o[8*i+:8] = (tl_i.a_valid) ? {8{tl_i.a_mask[i]}} : '0;
+      // only forward valid data here.
+      wdata_o[8*i+:8] = (tl_i.a_mask[i] && we_o) ? tl_i.a_data[8*i+:8] : '0;
+      // mask for read data
+      rmask[8*i+:8] = {8{maskfifo_rdata[i]}};
     end
   end
-
 
   // Begin: Request Error Detection
 
@@ -195,10 +206,15 @@ module tlul_adapter_sram #(
   }; // Store the request only. Doesn't have to store data
   assign reqfifo_rready = d_ack ;
 
+  // push together with ReqFIFO, pop upon returning read
+  assign maskfifo_wdata = tl_i.a_mask;
+  assign maskfifo_wvalid = sram_ack & ~we_o;
+  assign maskfifo_rready = rspfifo_wvalid;
+
   assign rspfifo_wvalid = rvalid_i & reqfifo_rvalid;
   assign rspfifo_wdata  = '{
-    data:  rdata_i,
-    error: rerror_i[1]  // Only care for Uncorrectable error
+    data:  rdata_i & rmask, // make sure only requested bytes are forwarded
+    error: rerror_i[1] // Only care for Uncorrectable error
   };
   assign rspfifo_rready = (reqfifo_rdata.op == OpRead & ~reqfifo_rdata.error)
                         ? reqfifo_rready : 1'b0 ;
@@ -213,15 +229,17 @@ module tlul_adapter_sram #(
   //    responses), storing the request is necessary. And if the read entry
   //    is write op, it is safe to return the response right away. If it is
   //    read reqeust, then D response is waiting until read data arrives.
-  prim_fifo_sync #(
-    .Width  (ReqFifoWidth),
-    .Pass   (1'b0),
+
+  // Notes:
   // The oustanding+1 allows the reqfifo to absorb back to back transactions
   // without any wait states.  Alternatively, the depth can be kept as
   // oustanding as long as the outgoing ready is qualified with the acceptance
   // of the response in the same cycle.  Doing so however creates a path from
   // ready_i to ready_o, which may not be desireable.
-    .Depth  (Outstanding+1'b1)
+  prim_fifo_sync #(
+    .Width  (ReqFifoWidth),
+    .Pass   (1'b0),
+    .Depth  (Outstanding)
   ) u_reqfifo (
     .clk_i,
     .rst_ni,
@@ -233,6 +251,27 @@ module tlul_adapter_sram #(
     .rvalid (reqfifo_rvalid),
     .rready (reqfifo_rready),
     .rdata  (reqfifo_rdata)
+  );
+
+  // MaskFIFO:
+  //    While the ReqFIFO holds the request until it is sent back via TL-UL, the
+  //    MaskFIFO only needs to hold the mask value until the read data returns
+  //    from memory.
+  prim_fifo_sync #(
+    .Width  ($bits(tl_i.a_mask)),
+    .Pass   (1'b0),
+    .Depth  (Outstanding)
+  ) u_maskfifo (
+    .clk_i,
+    .rst_ni,
+    .clr_i  (1'b0),
+    .wvalid (maskfifo_wvalid),
+    .wready (maskfifo_wready),
+    .wdata  (maskfifo_wdata),
+    .depth  (),
+    .rvalid (),
+    .rready (maskfifo_rready),
+    .rdata  (maskfifo_rdata)
   );
 
   // Rationale having #Outstanding depth in response FIFO.
@@ -259,13 +298,21 @@ module tlul_adapter_sram #(
   );
 
   // below assertion fails when SRAM rvalid is asserted even though ReqFifo is empty
-  `ASSERT(rvalidHighReqFifoEmpty, rvalid_i |-> reqfifo_rvalid, clk_i, !rst_ni)
+  `ASSERT(rvalidHighReqFifoEmpty, rvalid_i |-> reqfifo_rvalid)
 
   // below assertion fails when outstanding value is too small (SRAM rvalid is asserted
   // even though the RspFifo is full)
-  `ASSERT(rvalidHighWhenRspFifoFull, rvalid_i |-> rspfifo_wready, clk_i, !rst_ni)
+  `ASSERT(rvalidHighWhenRspFifoFull, rvalid_i |-> rspfifo_wready)
 
   // If both ErrOnWrite and ErrOnRead are set, this block is useless
   `ASSERT_INIT(adapterNoReadOrWrite, (ErrOnWrite & ErrOnRead) == 0)
+
+  // make sure outputs are defined
+  `ASSERT_KNOWN(TlOutKnown_A,    tl_o   )
+  `ASSERT_KNOWN(ReqOutKnown_A,   req_o  )
+  `ASSERT_KNOWN(WeOutKnown_A,    we_o   )
+  `ASSERT_KNOWN(AddrOutKnown_A,  addr_o )
+  `ASSERT_KNOWN(WdataOutKnown_A, wdata_o)
+  `ASSERT_KNOWN(WmaskOutKnown_A, wmask_o)
 
 endmodule

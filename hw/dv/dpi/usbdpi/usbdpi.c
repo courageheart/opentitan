@@ -21,8 +21,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "verilator_sim_ctrl.h"
-
 static const char *st_states[] = {"ST_IDLE 0", "ST_SEND 1", "ST_GET 2",
                                   "ST_SYNC 3", "ST_EOP 4",  "ST_EOP0 5"};
 
@@ -32,17 +30,7 @@ static const char *hs_states[] = {
     "HS_SENDACK 8",    "HS_WAIT_PKT 9",  "HS_ACKIFDATA 10",    "HS_SENDHI 11",
     "HS_EMPTYDATA 12", "HS_WAITACK2 13", "HS_NEXTFRAME 14"};
 
-extern VerilatorSimCtrl *simctrl;
-
-static void finish(void) {
-  if (!simctrl) {
-    return;
-  }
-  simctrl->RequestStop();
-}
-
 void *usbdpi_create(const char *name, int loglevel) {
-  int i;
   struct usbdpi_ctx *ctx =
       (struct usbdpi_ctx *)calloc(1, sizeof(struct usbdpi_ctx));
   assert(ctx);
@@ -57,6 +45,7 @@ void *usbdpi_create(const char *name, int loglevel) {
   ctx->hostSt = HS_NEXTFRAME;
   ctx->loglevel = loglevel;
   ctx->mon = monitor_usb_init();
+  ctx->baudrate_set_successfully = 0;
 
   char cwd[PATH_MAX];
   char *cwd_rv;
@@ -66,6 +55,9 @@ void *usbdpi_create(const char *name, int loglevel) {
   int rv;
   rv = snprintf(ctx->fifo_pathname, PATH_MAX, "%s/%s", cwd, name);
   assert(rv <= PATH_MAX && rv > 0);
+
+  // Delete the file if it still exists (simulation crashed)
+  rv = unlink(ctx->fifo_pathname);
 
   rv = mkfifo(ctx->fifo_pathname, 0644);  // writes are not supported currently
   if (rv != 0) {
@@ -92,17 +84,20 @@ void *usbdpi_create(const char *name, int loglevel) {
 
 const char *decode_usb[] = {"SE0", "0-K", "1-J", "SE1"};
 
-void usbdpi_device_to_host(void *ctx_void, svBitVecVal *d2p_data) {
+void usbdpi_device_to_host(void *ctx_void, const svBitVecVal *usb_d2p) {
   struct usbdpi_ctx *ctx = (struct usbdpi_ctx *)ctx_void;
   assert(ctx);
-  int d2p = d2p_data[0];
+  int d2p = usb_d2p[0];
   int dp, dn;
   int n;
   char obuf[MAX_OBUF];
 
   char raw_str[D2P_BITS + 1];
-  for (int i = 0; i < 5; i++) {
-    raw_str[5 - i - 1] = !!(d2p & (1 << i)) + '0';
+  {
+    int i;
+    for (i = 0; i < 5; i++) {
+      raw_str[5 - i - 1] = !!(d2p & (1 << i)) + '0';
+    }
   }
   raw_str[D2P_BITS] = 0;
 
@@ -156,17 +151,26 @@ void setDeviceAddress(struct usbdpi_ctx *ctx) {
       ctx->data[1] = 0;
       ctx->data[2] = 0 | CRC5(0, 11) << 3;
       ctx->data[3] = USB_PID_DATA0;
+      if (INSERT_ERR_PID) {
+        ctx->data[3] = 0xc4;
+      }
       ctx->data[4] = 0;  // h2d, std, device
       ctx->data[5] = 5;  // set address
       ctx->data[6] = 2;  // device address
       ctx->data[7] = 0;
-      ctx->data[8] = 0;  // wIndex = 0
+      // Trigger bitstuffing, technically the device
+      // behaviour is unspecified with wIndex != 0
+      ctx->data[8] = 0xFF;  // wIndex = 0xFF00
       ctx->data[9] = 0;
       ctx->data[10] = 0;  // wLength = 0
       ctx->data[11] = 0;
       add_crc16(ctx->data, ctx->datastart, 12);
       // ctx->data[12] = 0xEB; // pre-computed CRC16
       // ctx->data[13] = 0x16;
+      if (INSERT_ERR_CRC) {
+        // Flip the last CRC bit to emulate a CRC error
+        ctx->data[13] = ctx->data[13] ^ 0x01;
+      }
       ctx->hostSt = HS_WAITACK;
       break;
     case HS_WAITACK:
@@ -187,11 +191,11 @@ void setDeviceAddress(struct usbdpi_ctx *ctx) {
       }
       break;
     case HS_DS_RXDATA:
-      ctx->wait = ctx->tick_bits + 48;  // HACK -- 2 bytes
+      ctx->wait = ctx->tick_bits + 24;  // HACK -- 2 bytes
       ctx->hostSt = HS_DS_SENDACK;
       break;
     case HS_DS_SENDACK:
-      if (ctx->tick_bits == ctx->wait) {
+      if (ctx->tick_bits >= ctx->wait) {
         ctx->state = ST_SYNC;
         ctx->bytes = 1;
         ctx->datastart = -1;
@@ -199,6 +203,7 @@ void setDeviceAddress(struct usbdpi_ctx *ctx) {
         ctx->bit = 1;
         ctx->data[0] = USB_PID_ACK;
         ctx->hostSt = HS_NEXTFRAME;
+        printf("[usbdpi] setDeviceAddress done\n");
       }
       break;
     default:
@@ -262,6 +267,7 @@ void readDescriptor(struct usbdpi_ctx *ctx) {
         ctx->bit = 1;
         ctx->data[0] = USB_PID_ACK;
         ctx->hostSt = HS_NEXTFRAME;
+        printf("[usbdpi] readDescriptor done\n");
       }
       break;
     default:
@@ -344,6 +350,7 @@ void readBaud(struct usbdpi_ctx *ctx) {
     case HS_WAITACK2:
       ctx->wait = ctx->tick_bits + 32;  // HACK
       ctx->hostSt = HS_NEXTFRAME;
+      printf("[usbdpi] readBaud done\n");
       break;
     default:
       break;
@@ -406,8 +413,64 @@ void setBaud(struct usbdpi_ctx *ctx) {
         ctx->bit = 1;
         ctx->data[0] = USB_PID_ACK;
         ctx->hostSt = HS_NEXTFRAME;
+        ctx->baudrate_set_successfully = 1;
+        printf("[usbdpi] setBaud done\n");
       }
       break;
+    default:
+      break;
+  }
+}
+
+// Test the ischronous transfers (without ACKs)
+void testIso(struct usbdpi_ctx *ctx) {
+  switch (ctx->hostSt) {
+    case HS_STARTFRAME:
+      ctx->state = ST_SYNC;
+      ctx->bytes = 14;
+      ctx->datastart = 3;
+      ctx->byte = 0;
+      ctx->bit = 1;
+      ctx->data[0] = USB_PID_OUT;
+      ctx->data[1] = 0x82;
+      ctx->data[2] = 1 | CRC5(0x182, 11) << 3;
+
+      ctx->data[3] = USB_PID_DATA0;
+      ctx->data[4] = 0x42;  // h2d, vendor, endpoint
+      ctx->data[5] = 3;     // set baud
+      ctx->data[6] = 96;    // index 0
+      ctx->data[7] = 0;     // type device
+      ctx->data[8] = 0;     // wIndex = 0
+      ctx->data[9] = 0;
+      ctx->data[10] = 0;  // wLength = 0
+      ctx->data[11] = 0;
+
+      add_crc16(ctx->data, ctx->datastart, 12);
+      // ctx->data[12] = 0x00; // pre-computed CRC32
+      // ctx->data[13] = 0xBD;
+      ctx->hostSt = HS_WAITACK;
+      break;
+    case HS_WAITACK:  // no actual ACK
+      ctx->wait = ctx->tick_bits + 32;
+      ctx->hostSt = HS_REQDATA;
+      break;
+    case HS_REQDATA:
+      if (ctx->tick_bits == ctx->wait) {
+        ctx->state = ST_SYNC;
+        ctx->bytes = 3;
+        ctx->datastart = -1;
+        ctx->byte = 0;
+        ctx->bit = 1;
+        ctx->data[0] = USB_PID_IN;
+        ctx->data[1] = 0x82;
+        ctx->data[2] = 1 | CRC5(0x0182, 11) << 3;
+        ctx->hostSt = HS_WAITDATA;
+      }
+      break;
+    case HS_WAITDATA:
+      ctx->wait = ctx->tick_bits + 40;  // HACK
+      ctx->hostSt = HS_NEXTFRAME;
+      printf("[usbdpi] testIso done\n");
     default:
       break;
   }
@@ -480,16 +543,17 @@ void pollRX(struct usbdpi_ctx *ctx, int sendHi, int nakData) {
   }
 }
 
-char usbdpi_host_to_device(void *ctx_void, svBitVecVal *d2p_data) {
+char usbdpi_host_to_device(void *ctx_void, const svBitVecVal *usb_d2p) {
   struct usbdpi_ctx *ctx = (struct usbdpi_ctx *)ctx_void;
   assert(ctx);
-  int d2p = d2p_data[0];
+  int d2p = usb_d2p[0];
   uint32_t last_driving = ctx->driving;
   int force_stat = 0;
   int dat;
 
   if (ctx->tick == 0) {
-    for (int i = 7; i > 0; i--) {
+    int i;
+    for (i = 7; i > 0; i--) {
       printf("Sleep %d...\n", i);
       sleep(1);
     }
@@ -533,15 +597,22 @@ char usbdpi_host_to_device(void *ctx_void, svBitVecVal *d2p_data) {
       ctx->framepend = 0;
       ctx->frame++;
       ctx->lastframe = ctx->tick_bits;
-      ctx->state = ST_SYNC;
-      ctx->bytes = 3;
-      ctx->datastart = -1;
-      ctx->byte = 0;
-      ctx->bit = 1;
-      ctx->data[0] = USB_PID_SOF;
-      ctx->data[1] = ctx->frame & 0xff;
-      ctx->data[2] = (ctx->frame & 0x700) >> 8 | CRC5(ctx->frame & 0x7ff, 11)
-                                                     << 3;
+
+      if (ctx->frame >= 20 && ctx->frame < 30) {
+        // Test suspend
+        ctx->state = ST_IDLE;
+        printf("Idle frame %d\n", ctx->frame);
+      } else {
+        ctx->state = ST_SYNC;
+        ctx->bytes = 3;
+        ctx->datastart = -1;
+        ctx->byte = 0;
+        ctx->bit = 1;
+        ctx->data[0] = USB_PID_SOF;
+        ctx->data[1] = ctx->frame & 0xff;
+        ctx->data[2] =
+            ((ctx->frame & 0x700) >> 8) | (CRC5(ctx->frame & 0x7ff, 11) << 3);
+      }
       printf("USB: %8d frame 0x%x CRC5 0x%x\n", ctx->tick, ctx->frame,
              CRC5(ctx->frame, 11));
       if (ctx->hostSt == HS_NEXTFRAME) {
@@ -551,10 +622,6 @@ char usbdpi_host_to_device(void *ctx_void, svBitVecVal *d2p_data) {
   }
   switch (ctx->state) {
     case ST_IDLE:
-      if ((simctrl && simctrl->TracingEnabled() && (ctx->frame == 20)) ||
-          (ctx->frame > 2000))
-        finish();
-
       switch (ctx->frame) {
         case 1:
           setDeviceAddress(ctx);
@@ -562,19 +629,25 @@ char usbdpi_host_to_device(void *ctx_void, svBitVecVal *d2p_data) {
         case 2:
           readDescriptor(ctx);
           break;
-          // These should be at 3 and 4 but the read needs the host
-          // not to be sending (until skip fifo is implemented in in_pe engine)
-          // so for now push later when things are quiet (could also adjust
-          // hello_world to not use the uart until frame 4)
+        // These should be at 3 and 4 but the read needs the host
+        // not to be sending (until skip fifo is implemented in in_pe engine)
+        // so for now push later when things are quiet (could also adjust
+        // hello_world to not use the uart until frame 4)
         case 10:
           readBaud(ctx);
           break;
         case 15:
           setBaud(ctx);
           break;
-
+        case 17:
+          testIso(ctx);
+          break;
+        case 18:
+          testIso(ctx);
+          break;
         default:
-          if (ctx->frame > ctx->inframe) {
+          if (ctx->frame > ctx->inframe &&
+              !(ctx->frame >= 20 && ctx->frame < 30)) {
             pollRX(ctx, (ctx->frame == 9) || (ctx->frame == 14),
                    ((ctx->frame == 16) || (ctx->frame == 9)));
           }
@@ -594,7 +667,8 @@ char usbdpi_host_to_device(void *ctx_void, svBitVecVal *d2p_data) {
       break;
 
     case ST_SEND:
-      if ((ctx->linebits & 0x3f) == 0x3f) {  // sent 6 ones
+      if ((ctx->linebits & 0x3f) == 0x3f &&
+          !INSERT_ERR_BITSTUFF) {  // sent 6 ones
         // bit stuff and force a transition
         ctx->driving ^= (P2D_DP | P2D_DN);
         force_stat = 1;

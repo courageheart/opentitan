@@ -6,7 +6,9 @@
 //
 //
 
-module flash_ctrl (
+`include "prim_assert.sv"
+
+module flash_ctrl import flash_ctrl_pkg::*; (
   input        clk_i,
   input        rst_ni,
 
@@ -15,8 +17,8 @@ module flash_ctrl (
   output       tlul_pkg::tl_d2h_t tl_o,
 
   // Flash Interface
-  input        flash_ctrl_pkg::flash_m2c_t flash_i,
-  output       flash_ctrl_pkg::flash_c2m_t flash_o,
+  input        flash_rsp_t flash_i,
+  output       flash_req_t flash_o,
 
   // Interrupts
   output logic intr_prog_empty_o, // Program fifo is empty
@@ -27,24 +29,10 @@ module flash_ctrl (
   output logic intr_op_error_o    // Requested flash operation (wr/erase) done
 );
 
-  import flash_ctrl_pkg::*;
   import flash_ctrl_reg_pkg::*;
 
-  localparam int NumBanks = top_pkg::FLASH_BANKS;
-  localparam int PagesPerBank = top_pkg::FLASH_PAGES_PER_BANK;
-  localparam int WordsPerPage = top_pkg::FLASH_WORDS_PER_PAGE;
-  localparam int BankW = top_pkg::FLASH_BKW;
-  localparam int PageW = top_pkg::FLASH_PGW;
-  localparam int WordW = top_pkg::FLASH_WDW;
-  localparam int AllPagesW = BankW + PageW;
-  localparam int AddrW = top_pkg::FLASH_AW;
-  localparam int DataWidth = top_pkg::FLASH_DW;
-  localparam int DataBitWidth = $clog2(DataWidth/8);
+  localparam int DataBitWidth = $clog2(BytesPerWord);
   localparam int EraseBitWidth = $bits(flash_erase_op_e);
-  localparam int FifoDepth = 16;
-  localparam int FifoDepthW = $clog2(FifoDepth+1);
-  localparam int MpRegions = 8;
-
 
   flash_ctrl_reg2hw_t reg2hw;
   flash_ctrl_hw2reg_t hw2reg;
@@ -75,21 +63,22 @@ module flash_ctrl (
   logic                 prog_fifo_req;
   logic                 prog_fifo_wen;
   logic                 prog_fifo_ren;
-  logic [DataWidth-1:0] prog_fifo_wdata;
-  logic [DataWidth-1:0] prog_fifo_rdata;
+  logic [BusWidth-1:0]  prog_fifo_wdata;
+  logic [BusWidth-1:0]  prog_fifo_rdata;
   logic [FifoDepthW-1:0] prog_fifo_depth;
   logic                 rd_fifo_wready;
   logic                 rd_fifo_rvalid;
   logic                 rd_fifo_wen;
   logic                 rd_fifo_ren;
-  logic [DataWidth-1:0] rd_fifo_wdata;
-  logic [DataWidth-1:0] rd_fifo_rdata;
+  logic [BusWidth-1:0]  rd_fifo_wdata;
+  logic [BusWidth-1:0]  rd_fifo_rdata;
   logic [FifoDepthW-1:0] rd_fifo_depth;
 
   // Program Control Connections
   logic prog_flash_req;
   logic prog_flash_ovfl;
   logic [AddrW-1:0] prog_flash_addr;
+  logic prog_op_valid;
 
   // Read Control Connections
   logic rd_flash_req;
@@ -109,8 +98,8 @@ module flash_ctrl (
   logic flash_rd_done, flash_prog_done, flash_erase_done;
   logic flash_error;
   logic [AddrW-1:0] flash_addr;
-  logic [DataWidth-1:0] flash_prog_data;
-  logic [DataWidth-1:0] flash_rd_data;
+  logic [BusWidth-1:0] flash_prog_data;
+  logic [BusWidth-1:0] flash_rd_data;
   logic init_busy;
   logic rd_op;
   logic prog_op;
@@ -126,9 +115,12 @@ module flash_ctrl (
   // Since the program and read FIFOs are never used at the same time, it should really be one
   // FIFO with muxed inputs and outputs.  This should be addressed once the flash integration
   // strategy has been identified
+
+  assign prog_op_valid = reg2hw.control.start.q & prog_op;
+
   tlul_adapter_sram #(
     .SramAw(1),         //address unused
-    .SramDw(DataWidth),
+    .SramDw(BusWidth),
     .ByteAccess(0),     //flash may not support byte access
     .ErrOnRead(1)       //reads not supported
   ) u_to_prog_fifo (
@@ -142,19 +134,19 @@ module flash_ctrl (
     .addr_o     (),
     .wmask_o    (),
     .wdata_o    (prog_fifo_wdata),
-    .rdata_i    (DataWidth'(0)),
+    .rdata_i    (BusWidth'(0)),
     .rvalid_i   (1'b0),
     .rerror_i   (2'b0)
   );
 
   prim_fifo_sync #(
-    .Width(DataWidth),
+    .Width(BusWidth),
     .Depth(FifoDepth)
   ) u_prog_fifo (
     .clk_i,
     .rst_ni (rst_ni),
     .clr_i  (reg2hw.control.fifo_rst.q),
-    .wvalid (prog_fifo_req & prog_fifo_wen),
+    .wvalid (prog_fifo_req & prog_fifo_wen & prog_op_valid),
     .wready (prog_fifo_wready),
     .wdata  (prog_fifo_wdata),
     .depth  (prog_fifo_depth),
@@ -165,14 +157,14 @@ module flash_ctrl (
 
   // Program handler is consumer of prog_fifo
   flash_prog_ctrl #(
-    .DataW(DataWidth),
+    .DataW(BusWidth),
     .AddrW(AddrW)
   ) u_flash_prog_ctrl (
     .clk_i,
     .rst_ni,
 
     // Software Interface
-    .op_start_i     (reg2hw.control.start.q & prog_op),
+    .op_start_i     (prog_op_valid),
     .op_num_words_i (reg2hw.control.num.q),
     .op_done_o      (ctrl_done[0]),
     .op_err_o       (ctrl_err[0]),
@@ -204,7 +196,7 @@ module flash_ctrl (
 
   tlul_adapter_sram #(
     .SramAw(1),         //address unused
-    .SramDw(DataWidth),
+    .SramDw(BusWidth),
     .ByteAccess(0),     //flash may not support byte access
     .ErrOnWrite(1)      //writes not supported
   ) u_to_rd_fifo (
@@ -224,7 +216,7 @@ module flash_ctrl (
   );
 
   prim_fifo_sync #(
-    .Width(DataWidth),
+    .Width(BusWidth),
     .Depth(FifoDepth)
   ) u_rd_fifo (
     .clk_i,
@@ -243,7 +235,7 @@ module flash_ctrl (
 
   // Read handler is consumer of rd_fifo
   flash_rd_ctrl #(
-    .DataW(DataWidth),
+    .DataW(BusWidth),
     .AddrW(AddrW)
   ) u_flash_rd_ctrl (
     .clk_i,
@@ -315,31 +307,17 @@ module flash_ctrl (
   end
 
   // extra region is the default region
-  flash_mp_region_t region_cfgs[MpRegions+1];
-  logic [NumBanks-1:0] bank_cfgs;
+  flash_ctrl_reg2hw_mp_region_cfg_mreg_t [MpRegions:0] region_cfgs;
 
-  // TODO: reuse generated type from reg_pkg?
-  for (genvar k = 0; k < NumBanks; k++) begin : gen_mp_bank_cfgs
-    assign bank_cfgs[k] = reg2hw.mp_bank_cfg[k].q;
-  end
+  assign region_cfgs[MpRegions-1:0] = reg2hw.mp_region_cfg[MpRegions-1:0];
 
-  for (genvar k = 0; k <= MpRegions; k++) begin : gen_mp_region_cfg
-    if (k == MpRegions) begin : gen_last_region
-      assign region_cfgs[k].base_page = '0;
-      assign region_cfgs[k].size      = {AllPagesW{1'b1}};
-      assign region_cfgs[k].en        = 1'b1;
-      assign region_cfgs[k].rd_en     = reg2hw.default_region.rd_en.q;
-      assign region_cfgs[k].prog_en   = reg2hw.default_region.prog_en.q;
-      assign region_cfgs[k].erase_en  = reg2hw.default_region.erase_en.q;
-    end else begin : gen_region
-      assign region_cfgs[k].base_page = reg2hw.mp_region_cfg[k].base.q;
-      assign region_cfgs[k].size      = reg2hw.mp_region_cfg[k].size.q;
-      assign region_cfgs[k].en        = reg2hw.mp_region_cfg[k].en.q;
-      assign region_cfgs[k].rd_en     = reg2hw.mp_region_cfg[k].rd_en.q;
-      assign region_cfgs[k].prog_en   = reg2hw.mp_region_cfg[k].prog_en.q;
-      assign region_cfgs[k].erase_en  = reg2hw.mp_region_cfg[k].erase_en.q;
-    end
-  end
+  //last region
+  assign region_cfgs[MpRegions].base.q = '0;
+  assign region_cfgs[MpRegions].size.q = {AllPagesW{1'b1}};
+  assign region_cfgs[MpRegions].en.q = 1'b1;
+  assign region_cfgs[MpRegions].rd_en.q = reg2hw.default_region.rd_en.q;
+  assign region_cfgs[MpRegions].prog_en.q = reg2hw.default_region.prog_en.q;
+  assign region_cfgs[MpRegions].erase_en.q = reg2hw.default_region.erase_en.q;
 
   // Flash memory protection
   flash_mp #(
@@ -352,13 +330,13 @@ module flash_ctrl (
 
     // sw configuration
     .region_cfgs_i(region_cfgs),
-    .bank_cfgs_i(bank_cfgs),
+    .bank_cfgs_i(reg2hw.mp_bank_cfg),
 
     // read / prog / erase controls
     .req_i(flash_req),
     .req_addr_i(flash_addr[WordW +: AllPagesW]),
     .addr_ovfl_i(rd_flash_ovfl | prog_flash_ovfl),
-    .req_bk_i(flash_addr[WordW + PageW +: BankW]),
+    .req_bk_i(flash_addr[BankAddrW +: BankW]),
     .rd_i(rd_op),
     .prog_i(prog_op),
     .pg_erase_i(erase_op & (erase_flash_type == PageErase)),
@@ -416,7 +394,7 @@ module flash_ctrl (
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      intr_src_q <= 'h0;
+      intr_src_q <= 4'h8; //prog_fifo is empty by default
     end else begin
       intr_src_q <= intr_src;
     end
@@ -478,15 +456,18 @@ module flash_ctrl (
 
 
   // Assertions
-  `ASSERT_KNOWN(TlDValidKnownO_A,       tl_o.d_valid,       clk_i, !rst_ni)
-  `ASSERT_KNOWN(TlAReadyKnownO_A,       tl_o.a_ready,       clk_i, !rst_ni)
+
+  `ASSERT_KNOWN(TlDValidKnownO_A,       tl_o.d_valid     )
+  `ASSERT_KNOWN(TlAReadyKnownO_A,       tl_o.a_ready     )
   `ASSERT_KNOWN(FlashKnownO_A,          {flash_o.req, flash_o.rd, flash_o.prog, flash_o.pg_erase,
-                                         flash_o.bk_erase}, clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrProgEmptyKnownO_A,  intr_prog_empty_o,  clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrProgLvlKnownO_A,    intr_prog_lvl_o,    clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrProgRdFullKnownO_A, intr_rd_full_o,     clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrRdLvlKnownO_A,      intr_rd_lvl_o,      clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrOpDoneKnownO_A,     intr_op_done_o,     clk_i, !rst_ni)
-  `ASSERT_KNOWN(IntrOpErrorKnownO_A,    intr_op_error_o,    clk_i, !rst_ni)
+                                         flash_o.bk_erase})
+  `ASSERT_KNOWN_IF(FlashAddrKnown_A,    flash_o.addr, flash_o.req)
+  `ASSERT_KNOWN_IF(FlashProgKnown_A,    flash_o.prog_data, flash_o.prog & flash_o.req)
+  `ASSERT_KNOWN(IntrProgEmptyKnownO_A,  intr_prog_empty_o)
+  `ASSERT_KNOWN(IntrProgLvlKnownO_A,    intr_prog_lvl_o  )
+  `ASSERT_KNOWN(IntrProgRdFullKnownO_A, intr_rd_full_o   )
+  `ASSERT_KNOWN(IntrRdLvlKnownO_A,      intr_rd_lvl_o    )
+  `ASSERT_KNOWN(IntrOpDoneKnownO_A,     intr_op_done_o   )
+  `ASSERT_KNOWN(IntrOpErrorKnownO_A,    intr_op_error_o  )
 
 endmodule

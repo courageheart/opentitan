@@ -8,7 +8,9 @@ class ${name}_scoreboard extends cip_base_scoreboard #(
 class ${name}_scoreboard extends dv_base_scoreboard #(
 % endif
     .CFG_T(${name}_env_cfg),
+% if has_ral:
     .RAL_T(${name}_reg_block),
+% endif
     .COV_T(${name}_env_cov)
   );
   `uvm_component_utils(${name}_scoreboard)
@@ -64,21 +66,20 @@ class ${name}_scoreboard extends dv_base_scoreboard #(
     bit     write           = item.is_write();
     uvm_reg_addr_t csr_addr = get_normalized_addr(item.a_addr);
 
-    super.process_tl_access(item, channel);
-    if (is_tl_err_exp || is_tl_unmapped_addr) return;
-
     // if access was to a valid csr, get the csr handle
     if (csr_addr inside {cfg.csr_addrs}) begin
       csr = ral.default_map.get_reg_by_offset(csr_addr);
       `DV_CHECK_NE_FATAL(csr, null)
     end
-    end else begin
+    else begin
       `uvm_fatal(`gfn, $sformatf("Access unexpected addr 0x%0h", csr_addr))
     end
 
     if (channel == AddrChannel) begin
       // if incoming access is a write to a valid csr, then make updates right away
-      if (write) csr.predict(.value(item.a_data), .kind(UVM_PREDICT_WRITE), .be(item.a_mask));
+      if (write) begin
+        void'(csr.predict(.value(item.a_data), .kind(UVM_PREDICT_WRITE), .be(item.a_mask)));
+      end
     end
 
     // process the csr req
@@ -97,7 +98,7 @@ class ${name}_scoreboard extends dv_base_scoreboard #(
         `DV_CHECK_EQ(csr.get_mirrored_value(), item.d_data,
                      $sformatf("reg name: %0s", csr.get_full_name()))
       end
-      csr.predict(.value(item.d_data), .kind(UVM_PREDICT_READ));
+      void'(csr.predict(.value(item.d_data), .kind(UVM_PREDICT_READ)));
     end
   endtask
 % endif

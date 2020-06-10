@@ -5,6 +5,9 @@
 #ifndef USBDPI_H_
 #define USBDPI_H_
 
+#define TOOL_VERILATOR 1
+#define TOOL_INCISIVE 0
+
 #include <limits.h>
 #include <svdpi.h>
 
@@ -20,6 +23,11 @@
 // Logging level (parameter to module)
 #define LOG_MON 0x01  // monitor_usb (packet level)
 #define LOG_BIT 0x08  // bit level
+
+// Error insertion
+#define INSERT_ERR_CRC 0
+#define INSERT_ERR_PID 0
+#define INSERT_ERR_BITSTUFF 0
 
 #define D2P_BITS 5
 #define D2P_DP 16
@@ -74,7 +82,9 @@
 #define SEND_MAX 32
 #include <stdint.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 struct usbdpi_ctx {
   int fifo_fd;
@@ -99,11 +109,12 @@ struct usbdpi_ctx {
   int datastart;
   int hostSt;
   uint8_t data[SEND_MAX];
+  int baudrate_set_successfully;
 };
 
 void *usbdpi_create(const char *name, int loglevel);
-void usbdpi_device_to_host(void *ctx_void, svBitVecVal *usb_d2p);
-char usbdpi_host_to_device(void *ctx_void, svBitVecVal *usb_d2p);
+void usbdpi_device_to_host(void *ctx_void, const svBitVecVal *usb_d2p);
+char usbdpi_host_to_device(void *ctx_void, const svBitVecVal *usb_d2p);
 void usbdpi_close(void *ctx_void);
 uint32_t CRC5(uint32_t dwInput, int iBitcnt);
 uint32_t CRC16(uint8_t *data, int bytes);
@@ -111,5 +122,9 @@ uint32_t CRC16(uint8_t *data, int bytes);
 void *monitor_usb_init(void);
 void monitor_usb(void *mon, int fifo_fd, int log, int tick, int hdrive, int p2d,
                  int d2p, int *lastpid);
+
+#ifdef __cplusplus
 }
+#endif
+
 #endif  // USBDPI_H_

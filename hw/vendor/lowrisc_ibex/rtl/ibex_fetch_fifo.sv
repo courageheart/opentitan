@@ -9,6 +9,9 @@
  * input port: send address and data to the FIFO
  * clear_i clears the FIFO for the following cycle, including any new request
  */
+
+`include "prim_assert.sv"
+
 module ibex_fetch_fifo #(
   parameter int unsigned NUM_REQS = 2
 ) (
@@ -30,9 +33,12 @@ module ibex_fetch_fifo #(
     input  logic        out_ready_i,
     output logic [31:0] out_addr_o,
     output logic [31:0] out_rdata_o,
-    output logic        out_err_o
+    output logic        out_err_o,
+    output logic        out_err_plus2_o
 );
 
+  // To gain extra performance DEPTH should be increased, this is due to some inefficiencies in the
+  // way the fetch fifo operates see issue #574 for more details
   localparam int unsigned DEPTH = NUM_REQS+1;
 
   // index 0 is used for output
@@ -45,7 +51,7 @@ module ibex_fetch_fifo #(
 
   logic                     pop_fifo;
   logic             [31:0]  rdata, rdata_unaligned;
-  logic                     err,   err_unaligned;
+  logic                     err,   err_unaligned, err_plus2;
   logic                     valid, valid_unaligned;
 
   logic                     aligned_is_compressed, unaligned_is_compressed;
@@ -87,12 +93,18 @@ module ibex_fetch_fifo #(
                                         ((valid_q[0] & err_q[0]) |
                                          (in_err_i & (~valid_q[0] | ~unaligned_is_compressed)));
 
+  // Record when an error is caused by the second half of an unaligned 32bit instruction.
+  // Only needs to be correct when unaligned and if err_unaligned is set
+  assign err_plus2       = valid_q[1] ? (err_q[1] & ~err_q[0]) :
+                                        (in_err_i & valid_q[0] & ~err_q[0]);
+
   // An uncompressed unaligned instruction is only valid if both parts are available
   assign valid_unaligned = valid_q[1] ? 1'b1 :
                                         (valid_q[0] & in_valid_i);
 
-  assign unaligned_is_compressed    = rdata[17:16] != 2'b11;
-  assign aligned_is_compressed      = rdata[ 1: 0] != 2'b11;
+  // If there is an error, rdata is unknown
+  assign unaligned_is_compressed = (rdata[17:16] != 2'b11) | err;
+  assign aligned_is_compressed   = (rdata[ 1: 0] != 2'b11) & ~err;
 
   ////////////////////////////////////////
   // Instruction aligner (if unaligned) //
@@ -101,8 +113,9 @@ module ibex_fetch_fifo #(
   always_comb begin
     if (out_addr_o[1]) begin
       // unaligned case
-      out_rdata_o = rdata_unaligned;
-      out_err_o   = err_unaligned;
+      out_rdata_o     = rdata_unaligned;
+      out_err_o       = err_unaligned;
+      out_err_plus2_o = err_plus2;
 
       if (unaligned_is_compressed) begin
         out_valid_o = valid;
@@ -111,9 +124,10 @@ module ibex_fetch_fifo #(
       end
     end else begin
       // aligned case
-      out_rdata_o = rdata;
-      out_err_o   = err;
-      out_valid_o = valid;
+      out_rdata_o     = rdata;
+      out_err_o       = err;
+      out_err_plus2_o = 1'b0;
+      out_valid_o     = valid;
     end
   end
 
@@ -219,9 +233,13 @@ module ibex_fetch_fifo #(
   ////////////////
   // Assertions //
   ////////////////
-`ifndef VERILATOR
-  assert property (
-    @(posedge clk_i) disable iff (!rst_ni)
-    (in_valid_i) |-> ((valid_q[DEPTH-1] == 1'b0) || (clear_i == 1'b1)) );
-`endif
+
+  // Must not push and pop simultaneously when FIFO full.
+  `ASSERT(IbexFetchFifoPushPopFull,
+      (in_valid_i && pop_fifo) |-> (!valid_q[DEPTH-1] || clear_i))
+
+  // Must not push to FIFO when full.
+  `ASSERT(IbexFetchFifoPushFull,
+      (in_valid_i) |-> (!valid_q[DEPTH-1] || clear_i))
+
 endmodule

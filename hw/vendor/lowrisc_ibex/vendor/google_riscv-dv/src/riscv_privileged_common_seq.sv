@@ -18,6 +18,7 @@
 class riscv_privileged_common_seq extends uvm_sequence;
 
   riscv_instr_gen_config  cfg;
+  int                     hart;
   riscv_privil_reg        mstatus;
   riscv_privil_reg        mie;
   riscv_privil_reg        sstatus;
@@ -33,15 +34,20 @@ class riscv_privileged_common_seq extends uvm_sequence;
 
   virtual function void enter_privileged_mode(input privileged_mode_t mode,
                                               output string instrs[$]);
-    string label = format_string({"init_", mode.name(), ":"}, LABEL_STR_LEN);
+    string label = format_string({$sformatf("%0sinit_%0s:",
+                                 hart_prefix(hart), mode.name())}, LABEL_STR_LEN);
     string ret_instr[] = {"mret"};
     riscv_privil_reg regs[$];
     label = label.tolower();
     setup_mmode_reg(mode, regs);
-    if(mode != MACHINE_MODE) begin
+    if(mode == SUPERVISOR_MODE) begin
       setup_smode_reg(mode, regs);
+    end
+    if(mode == USER_MODE) begin
+      setup_umode_reg(mode, regs);
+    end
+    if(cfg.virtual_addr_translation_on) begin
       setup_satp(instrs);
-      ret_instr.shuffle();
     end
     gen_csr_instr(regs, instrs);
     // Use mret/sret to switch to the target privileged mode
@@ -62,10 +68,18 @@ class riscv_privileged_common_seq extends uvm_sequence;
     mstatus.set_field("MXR", cfg.mstatus_mxr);
     mstatus.set_field("SUM", cfg.mstatus_sum);
     mstatus.set_field("TVM", cfg.mstatus_tvm);
+    mstatus.set_field("TW", cfg.set_mstatus_tw);
     mstatus.set_field("FS", cfg.mstatus_fs);
-    if(XLEN==64) begin
-      mstatus.set_field("UXL", 2'b10);
+    mstatus.set_field("VS", cfg.mstatus_vs);
+    if (!(SUPERVISOR_MODE inside {supported_privileged_mode}) && (XLEN != 32)) begin
+      mstatus.set_field("SXL", 2'b00);
+    end else if (XLEN == 64) begin
       mstatus.set_field("SXL", 2'b10);
+    end
+    if (!(USER_MODE inside {supported_privileged_mode}) && (XLEN != 32)) begin
+      mstatus.set_field("UXL", 2'b00);
+    end else if (XLEN == 64) begin
+      mstatus.set_field("UXL", 2'b10);
     end
     mstatus.set_field("XS", 0);
     mstatus.set_field("SD", 0);
@@ -95,12 +109,9 @@ class riscv_privileged_common_seq extends uvm_sequence;
       mie.set_field("USIE", cfg.enable_interrupt);
       mie.set_field("SSIE", cfg.enable_interrupt);
       mie.set_field("MSIE", cfg.enable_interrupt);
-      // TODO(udinator) - since full CSRs are being randomized, it's necessary to hardwire the xTIE
-      // fields to 1'b0, as it causes some timer interrupts to be triggered in Spike after a certain
-      // amount of simulation time.
-      mie.set_field("MTIE", 1'b0);
-      mie.set_field("STIE", 1'b0);
-      mie.set_field("UTIE", 1'b0);
+      mie.set_field("MTIE", cfg.enable_interrupt & cfg.enable_timer_irq);
+      mie.set_field("STIE", cfg.enable_interrupt & cfg.enable_timer_irq);
+      mie.set_field("UTIE", cfg.enable_interrupt & cfg.enable_timer_irq);
       regs.push_back(mie);
     end
   endfunction
@@ -136,13 +147,17 @@ class riscv_privileged_common_seq extends uvm_sequence;
       sie.set_field("SEIE", cfg.enable_interrupt);
       sie.set_field("USIE", cfg.enable_interrupt);
       sie.set_field("SSIE", cfg.enable_interrupt);
-      sie.set_field("STIE", 1'b0);
-      sie.set_field("UTIE", 1'b0);
+      sie.set_field("STIE", cfg.enable_interrupt & cfg.enable_timer_irq);
+      sie.set_field("UTIE", cfg.enable_interrupt & cfg.enable_timer_irq);
       regs.push_back(sie);
     end
   endfunction
 
   virtual function void setup_umode_reg(privileged_mode_t mode, ref riscv_privil_reg regs[$]);
+    // For implementations that do not provide any U-mode CSRs, return immediately
+    if (!riscv_instr_pkg::support_umode_trap) begin
+      return;
+    end
     ustatus = riscv_privil_reg::type_id::create("ustatus");
     ustatus.init_reg(USTATUS);
     `DV_CHECK_RANDOMIZE_FATAL(ustatus, "cannot randomize ustatus")
@@ -160,7 +175,7 @@ class riscv_privileged_common_seq extends uvm_sequence;
       end
       uie.set_field("UEIE", cfg.enable_interrupt);
       uie.set_field("USIE", cfg.enable_interrupt);
-      uie.set_field("UTIE", 1'b0);
+      uie.set_field("UTIE", cfg.enable_interrupt & cfg.enable_timer_irq);
       regs.push_back(uie);
     end
   endfunction

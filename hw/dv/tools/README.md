@@ -40,8 +40,8 @@ together. Please see following table for more details:
 Make variable | Description | Overridable (O) or Appendable (A) |
 --------------|-------------|-----------------------------------|
 DV_DIR | This is the top level DV directory for the IP containing the Test Makefile. | |
-DUT_TOP | This is the top level dut module under test. This is used in `{vcs, xcelium}_fsdb.tcl` file. | |
-TB_TOP | This is the top level tb module under test. This is used in `{vcs, xcelium}_fsdb.tcl` file. | |
+DUT_TOP | This is the top level dut module under test. | |
+TB_TOP | This is the top level tb module under test. This is used by the `<simulator>.tcl` file when dumping waves. | |
 FUSESOC_CORE | This is the testbench fusesoc .core name that contains the simulation target. This .core file is typically placed in the same directory as the test Makefile. | |
 COMPILE_KEY | Users need to define COMPILE_KEY sets for building Test Makefile, CL with a unique sets of compile time options. This is to be done in the Test Makefile in this way: <br>`ifeq ($(COMPILE_KEY),foo)`<br> &emsp;`BUILD_OPTS += +define+FOO` <br>`endif`<br> There is a 'default' compile key already added which implies no additional compile time options are required. Within each test specification, the COMPILE_KEY can be overridden to use the specific compile key. <br>`ifeq ($(TEST_NAME),foo_test)`<br> &emsp;`COMPILE_KEY = foo` <br> &emsp;`# other test opts` <br>`endif` | O (Within tests,  & command line) |
 UVM_TEST | SV UVM test class to create in the test. This is set to the 'base_test' by default and is overridden in the test specifications if needed. | O (Test Makefile) |
@@ -61,6 +61,7 @@ RUN_LOC | Run directory name in the scratch area. This defaults to a 'timestamp'
 SCRATCH_ROOT | This is the path to the root scratch area for bulding and running tests. If SCRATCH_ROOT is not already set, it will create a `scratch` directory in `pwd` which typically is the same as `DV_DIR`. | O (command line only) |
 RUN_DIR_LIMIT | When you run tests, The flow creates a new `RUN_LOC` directory with the current timestamp (unless it is overridden). In course of debug, you may run the same test multiple times, which will eventually result in a large number of old timestamp directories in the scratch space. Without periodic cleanup, you may run out of scratch space. By default, this variable is set to 5, which means before running the test, it will prune the test area to contain no more than RUN_DIR_LIMIT number of most recent directories (including the newly created one). On the flipside, if you want to run the same test with a large number of iterations, you will need to override this variable to be set to that many iterations to prevent the flow from deleting actively running simulations. | O (command line only) |
 SEED | This is a run time parameter passed to the sim executable. It uses `od` command to generate a 32-bit random number to run the sim with a unique seed. You can override this variable on the command line to run the test with a specific seed for debug. | O (command line only) |
+XPROP | This is a compile time parameter to enable / disable X-Propagation. Set to 1 by default. | O (command line only) |
 
 This is not an exhaustive list of Make variables. Please see `./Makefile` and
 `./*.mk` for more such variables in use.

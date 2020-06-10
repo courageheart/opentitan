@@ -5,6 +5,14 @@
 
 package tlul_pkg;
 
+  // this can be either PPC or BINTREE
+  // there is no functional difference, but timing and area behavior is different
+  // between the two instances. PPC can result in smaller implementations when timing
+  // is not critical, whereas BINTREE is favorable when timing pressure is high (but this
+  // may also result in a larger implementation). on FPGA targets, BINTREE is favorable
+  // both in terms of area and timing.
+  parameter ArbiterImpl = "PPC";
+
   typedef enum logic [2:0] {
     PutFullData    = 3'h 0,
     PutPartialData = 3'h 1,
@@ -16,7 +24,7 @@ package tlul_pkg;
   } tl_d_op_e;
 
   typedef struct packed {
-    logic [6:0] rsvd1;
+    logic [6:0] rsvd1; // Reserved for future use
     logic       parity_en;
     logic [7:0] parity; // Use only lower TL_DBW bit
   } tl_a_user_t;

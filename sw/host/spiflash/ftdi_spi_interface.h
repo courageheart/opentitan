@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#ifndef _F_SPIFLASH_FTDI_SPI_INTERFACE_H__
-#define _F_SPIFLASH_FTDI_SPI_INTERFACE_H__
+#ifndef OPENTITAN_SW_HOST_SPIFLASH_FTDI_SPI_INTERFACE_H_
+#define OPENTITAN_SW_HOST_SPIFLASH_FTDI_SPI_INTERFACE_H_
 
 #include <memory>
 #include <string>
@@ -29,9 +29,10 @@ class FtdiSpiInterface : public SpiInterface {
   // Initialize interface.
   bool Init() final;
 
-  // Transmit bytes from |tx| buffer and read data back onto |rx| buffer. The
-  // number of bytes are defined by |size|.
-  bool TransmitFrame(const uint8_t *tx, uint8_t *rx, size_t size) final;
+  // Transmit bytes from `tx` buffer. The number of bytes are defined by `size`.
+  bool TransmitFrame(const uint8_t *tx, size_t size) final;
+
+  bool CheckHash(const uint8_t *tx, size_t size) final;
 
  private:
   std::unique_ptr<MpsseHandle> spi_;
@@ -40,4 +41,4 @@ class FtdiSpiInterface : public SpiInterface {
 }  // namespace spiflash
 }  // namespace opentitan
 
-#endif  // _F_SPIFLASH_FTDI_SPI_INTERFACE_H__
+#endif  // OPENTITAN_SW_HOST_SPIFLASH_FTDI_SPI_INTERFACE_H_

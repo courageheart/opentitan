@@ -4,13 +4,13 @@
 //
 # PADCTRL register template
 #
-# Parameter (given by python tool)
+# Parameter (given by Python tool)
 #  - n_dio_pads:      Number of dedicated IO pads
 #  - n_mio_pads:      Number of muxed IO pads
 #  - attr_dw:        Attribute datawidth
 {
   name: "PADCTRL",
-  clock_primary: "clk_fixed",
+  clock_primary: "clk_i",
   bus_device: "tlul",
   regwidth: "32",
   param_list: [
@@ -43,6 +43,7 @@
       fields: [
         {
             bits:   "0",
+            name: "wen",
             desc: ''' When true, all configuration registers can be modified.
             When false, they become read-only. Defaults true, write zero to clear.
             '''
@@ -59,10 +60,11 @@
                   swaccess: "rw",
                   hwaccess: "hrw",
                   hwext:    "true",
+                  hwqe:     "true",
                   regwen:   "REGEN",
                   cname:    "ATTR",
                   fields: [
-                    { bits: "${attr_dw-1}:0",
+                    { bits: "7:0",
                       name: "ATTR",
                       desc: '''Bit 0: input/output inversion,
                                Bit 1: Virtual open drain enable.
@@ -73,7 +75,12 @@
                       '''
                       resval: 0
                     }
-                  ]
+                  ],
+                  // these CSRs have WARL behavior and may not
+                  // read back the same value that was written to them.
+                  // further, they have hardware side effects since they drive the
+                  // pad attributes, and hence no random data should be written to them.
+                  tags: ["excl:CsrAllTests:CsrExclWrite"]
                 }
     },
 # muxed pads
@@ -85,10 +92,11 @@
                   swaccess: "rw",
                   hwaccess: "hrw",
                   hwext:    "true",
+                  hwqe:     "true",
                   regwen:   "REGEN",
                   cname:    "ATTR",
                   fields: [
-                    { bits: "${attr_dw-1}:0",
+                    { bits: "7:0",
                       name: "ATTR",
                       desc: '''Bit 0: input/output inversion,
                                Bit 1: Virtual open drain enable.
@@ -99,10 +107,14 @@
                       '''
                       resval: 0
                     }
-                  ]
+                  ],
+                  // these CSRs have WARL behavior and may not
+                  // read back the same value that was written to them.
+                  // further, they have hardware side effects since they drive the
+                  // pad attributes, and hence no random data should be written to them.
+                  tags: ["excl:CsrAllTests:CsrExclWrite"]
                 }
     },
   ],
 }
-
 

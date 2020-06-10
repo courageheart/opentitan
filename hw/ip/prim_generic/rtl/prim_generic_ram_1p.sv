@@ -4,32 +4,31 @@
 //
 // Synchronous single-port SRAM model
 
-module prim_generic_ram_1p #(
-  parameter int Width           = 32, // bit
-  parameter int Depth           = 128,
-  parameter int DataBitsPerMask = 1, // Number of data bits per bit of write mask
-  localparam int Aw             = $clog2(Depth)  // derived parameter
-) (
-  input clk_i,
-  input rst_ni,       // Memory content reset
+`include "prim_assert.sv"
 
-  input                    req_i,
-  input                    write_i,
-  input        [Aw-1:0]    addr_i,
-  input        [Width-1:0] wdata_i,
-  input        [Width-1:0] wmask_i,
-  output logic             rvalid_o,
-  output logic [Width-1:0] rdata_o
+module prim_generic_ram_1p #(
+  parameter  int Width           = 32, // bit
+  parameter  int Depth           = 128,
+  parameter  int DataBitsPerMask = 1, // Number of data bits per bit of write mask
+  parameter      MemInitFile     = "", // VMEM file to initialize the memory with
+
+  localparam int Aw              = $clog2(Depth)  // derived parameter
+) (
+  input  logic             clk_i,
+
+  input  logic             req_i,
+  input  logic             write_i,
+  input  logic [Aw-1:0]    addr_i,
+  input  logic [Width-1:0] wdata_i,
+  input  logic [Width-1:0] wmask_i,
+  output logic [Width-1:0] rdata_o // Read data. Data is returned one cycle after req_i is high.
 );
 
   // Width of internal write mask. Note wmask_i input into the module is always assumed
   // to be the full bit mask
   localparam int MaskWidth = Width / DataBitsPerMask;
 
-  `ASSERT_INIT(paramCheckAw, Aw == $clog2(Depth))
-
-
-  logic [Width-1:0] mem [Depth];
+  logic [Width-1:0]     mem [Depth];
   logic [MaskWidth-1:0] wmask;
 
   always_comb begin
@@ -55,29 +54,5 @@ module prim_generic_ram_1p #(
     end
   end
 
-  always_ff @(posedge clk_i, negedge rst_ni) begin
-    if (!rst_ni) begin
-      rvalid_o <= '0;
-    end else begin
-      rvalid_o <= req_i & ~write_i;
-    end
-  end
-
-  `ifdef VERILATOR
-    export "DPI-C" task simutil_verilator_memload;
-
-    task simutil_verilator_memload;
-      input string file;
-      $readmemh(file, mem);
-    endtask
-  `endif
-
-  `ifdef SRAM_INIT_FILE
-      localparam MEM_FILE = `"`SRAM_INIT_FILE`";
-    initial
-    begin
-      $display("Initializing SRAM from %s", MEM_FILE);
-      $readmemh(MEM_FILE, mem);
-    end
-  `endif
+  `include "prim_util_memload.sv"
 endmodule

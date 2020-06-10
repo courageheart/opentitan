@@ -2,7 +2,7 @@
 title: "TL-UL Checklist"
 ---
 
-This checklist is for [Hardware Stage]({{< relref "/doc/project/hw_stages.md" >}}) transitions for the [TL-UL component.]({{<relref "/hw/ip/tlul/doc">}})
+This checklist is for [Hardware Stage]({{< relref "/doc/project/development_stages.md" >}}) transitions for the [TL-UL component.]({{<relref "/hw/ip/tlul/doc">}})
 All checklist items refer to the content in the [Checklist]({{< relref "/doc/project/checklist.md" >}}).
 
 ## Design Checklist
@@ -15,7 +15,7 @@ Documentation | [SPEC_COMPLETE][]     | Done        | [TL-UL Spec][] [crossbar_t
 Documentation | [CSR_DEFINED][]       | N/A         |
 RTL           | [CLKRST_CONNECTED][]  | Done        |
 RTL           | [IP_TOP][]            | Done        |
-RTL           | [IP_INSTANCED][]      | Done        |
+RTL           | [IP_INSTANTIABLE][]      | Done        |
 RTL           | [MEM_INSTANCED_80][]  | N/A         |
 RTL           | [FUNC_IMPLEMENTED][]  | Done        |
 RTL           | [ASSERT_KNOWN_ADDED][]| Done        |
@@ -30,12 +30,11 @@ Review        | Signoff date          | Done        | 2019-11-04
 [CSR_DEFINED]:        {{<relref "/doc/project/checklist.md#csr-defined" >}}
 [CLKRST_CONNECTED]:   {{<relref "/doc/project/checklist.md#clkrst-connected" >}}
 [IP_TOP]:             {{<relref "/doc/project/checklist.md#ip-top" >}}
-[IP_INSTANCED]:       {{<relref "/doc/project/checklist.md#ip-instanced" >}}
+[IP_INSTANTIABLE]:    {{<relref "/doc/project/checklist.md#ip-instantiable" >}}
 [MEM_INSTANCED_80]:   {{<relref "/doc/project/checklist.md#mem-instanced-80" >}}
 [FUNC_IMPLEMENTED]:   {{<relref "/doc/project/checklist.md#func-implemented" >}}
 [ASSERT_KNOWN_ADDED]: {{<relref "/doc/project/checklist.md#assert-known-added" >}}
 [LINT_SETUP]:         {{<relref "/doc/project/checklist.md#lint-setup" >}}
-[D1_REVIEWED]:        {{<relref "/doc/project/checklist.md#d1-reviewed" >}}
 
 ### D2
 
@@ -68,17 +67,14 @@ Review        | Signoff date            | Done        | 2019-11-04
 [FEATURE_FROZEN]:      {{<relref "/doc/project/checklist.md#feature-frozen" >}}
 [FEATURE_COMPLETE]:    {{<relref "/doc/project/checklist.md#feature-complete" >}}
 [AREA_SANITY_CHECK]:   {{<relref "/doc/project/checklist.md#area-sanity-check" >}}
-[DEBUG_BUS]:           {{<relref "/doc/project/checklist.md#debug-bus" >}}
 [PORT_FROZEN]:         {{<relref "/doc/project/checklist.md#port-frozen" >}}
 [ARCHITECTURE_FROZEN]: {{<relref "/doc/project/checklist.md#architecture-frozen" >}}
 [REVIEW_TODO]:         {{<relref "/doc/project/checklist.md#review-todo" >}}
 [STYLE_X]:             {{<relref "/doc/project/checklist.md#style-x" >}}
-[STYLE_LINT_SETUP]:    {{<relref "/doc/project/checklist.md#style-lint-setup" >}}
 [LINT_PASS]:           {{<relref "/doc/project/checklist.md#lint-pass" >}}
 [CDC_SETUP]:           {{<relref "/doc/project/checklist.md#cdc-setup" >}}
 [CDC_SYNCMACRO]:       {{<relref "/doc/project/checklist.md#cdc-syncmacro" >}}
 [FPGA_TIMING]:         {{<relref "/doc/project/checklist.md#fpga-timing" >}}
-[D2_REVIEWED]:         {{<relref "/doc/project/checklist.md#d2-reviewed" >}}
 
 ### D3
 
@@ -88,14 +84,14 @@ Documentation | [NEW_FEATURES_D3][]     | N/A         |
 RTL           | [TODO_COMPLETE][]       | Done        | Resolved: [#837][]
 Code Quality  | [LINT_COMPLETE][]       | Done        |
 Code Quality  | [CDC_COMPLETE][]        | N/A         |
-Review        | [REVIEW_RTL][]          | Not Started | 1st @tjaychen / 2nd @martin-lueker
+Review        | [REVIEW_RTL][]          | Done        | 1st @tjaychen / 2nd @martin-lueker
 Review        | [REVIEW_DELETED_FF][]   | N/A         |
 Review        | [REVIEW_SW_CSR][]       | N/A         |
 Review        | [REVIEW_SW_FATAL_ERR][] | Done        |
 Review        | [REVIEW_SW_CHANGE][]    | N/A         |
 Review        | [REVIEW_SW_ERRATA][]    | Done        |
-Review        | Reviewer(s)             |             |
-Review        | Signoff date            |             |
+Review        | Reviewer(s)             | Done        | @weicaiyang @tjaychen
+Review        | Signoff date            | Done        | 2019-11-07
 
 [NEW_FEATURES_D3]:      {{<relref "/doc/project/checklist.md#new-features-d3" >}}
 [TODO_COMPLETE]:        {{<relref "/doc/project/checklist.md#todo-complete" >}}
@@ -108,7 +104,6 @@ Review        | Signoff date            |             |
 [REVIEW_SW_FATAL_ERR]:  {{<relref "/doc/project/checklist.md#review-sw-fatal-err" >}}
 [REVIEW_SW_CHANGE]:     {{<relref "/doc/project/checklist.md#review-sw-change" >}}
 [REVIEW_SW_ERRATA]:     {{<relref "/doc/project/checklist.md#review-sw-errata" >}}
-[D3_REVIEWED]:          {{<relref "/doc/project/checklist.md#d3-reviewed" >}}
 
 ## Verification Checklist
 
@@ -164,7 +159,7 @@ Review        | Signoff date                          | Done        | 2019-11-04
 
  Type         | Item                                    | Resolution  | Note/Collaterals
 --------------|-----------------------------------------|-------------|------------------
-Documentation | [DESIGN_DELTAS_CAPTURED][]              | N/A         |
+Documentation | [DESIGN_DELTAS_CAPTURED_V2][]           | N/A         |
 Documentation | [DV_PLAN_COMPLETED][]                   | Done        |
 Testbench     | [ALL_INTERFACES_EXERCISED][]            | Done        |
 Testbench     | [ALL_ASSERTION_CHECKS_ADDED][]          | Done        |
@@ -182,19 +177,15 @@ Review        | Reviewer(s)                             | Done        | @eunchan
 Review        | Signoff date                            | Done        | 2019-11-04
 
 
-[DESIGN_DELTAS_CAPTURED]:             {{<relref "/doc/project/checklist.md#design-deltas-captured" >}}
-[DV_PLAN_COMPLETED]:                  {{<relref "/doc/project/checklist.md#dv-plan-completed"
->}}
+[DESIGN_DELTAS_CAPTURED_V2]:          {{<relref "/doc/project/checklist.md#design-deltas-captured-v2" >}}
+[DV_PLAN_COMPLETED]:                  {{<relref "/doc/project/checklist.md#dv-plan-completed" >}}
 [ALL_INTERFACES_EXERCISED]:           {{<relref "/doc/project/checklist.md#all-interfaces-exercised" >}}
 [ALL_ASSERTION_CHECKS_ADDED]:         {{<relref "/doc/project/checklist.md#all-assertion-checks-added" >}}
-[TB_ENV_COMPLETED]:                   {{<relref "/doc/project/checklist.md#tb-env-completed"
->}}
-[ALL_TESTS_PASSING]:                  {{<relref "/doc/project/checklist.md#all-tests-passing"
->}}
+[TB_ENV_COMPLETED]:                   {{<relref "/doc/project/checklist.md#tb-env-completed" >}}
+[ALL_TESTS_PASSING]:                  {{<relref "/doc/project/checklist.md#all-tests-passing" >}}
 [FW_SIMULATED]:                       {{<relref "/doc/project/checklist.md#fw-simulated" >}}
 [NIGHTLY_REGRESSION_V2]:              {{<relref "/doc/project/checklist.md#nightly-regression-v2" >}}
-[CODE_COVERAGE_V2]:                   {{<relref "/doc/project/checklist.md#code-coverage-v2"
->}}
+[CODE_COVERAGE_V2]:                   {{<relref "/doc/project/checklist.md#code-coverage-v2" >}}
 [FUNCTIONAL_COVERAGE_V2]:             {{<relref "/doc/project/checklist.md#functional-coverage-v2" >}}
 [NO_HIGH_PRIORITY_ISSUES_PENDING]:    {{<relref "/doc/project/checklist.md#no-high-priority-issues-pending" >}}
 [ALL_LOW_PRIORITY_ISSUES_ROOT_CAUSED]:{{<relref "/doc/project/checklist.md#all-low-priority-issues-root-caused" >}}
@@ -205,19 +196,19 @@ Review        | Signoff date                            | Done        | 2019-11-
 
  Type         | Item                              | Resolution  | Note/Collaterals
 --------------|-----------------------------------|-------------|------------------
-Documentation | [DESIGN_DELTAS_CAPTURED_IF_ANY][] | N/A         |
+Documentation | [DESIGN_DELTAS_CAPTURED_V3][]     | N/A         |
 Testbench     | [ALL_TODOS_RESOLVED][]            | Done        |
 Tests         | [X_PROP_ANALYSIS_COMPLETED][]     | Waived      | tool setup in progress
-Regression    | [NIGHTLY_REGRESSION_AT_100][]     | In Progress |
-Coverage      | [CODE_COVERAGE_AT_100][]          | Done        |
-Coverage      | [FUNCTIONAL_COVERAGE_AT_100][]    | In Progress | Waivers in PR
+Regression    | [NIGHTLY_REGRESSION_AT_100][]     | Done        |
+Coverage      | [CODE_COVERAGE_AT_100][]          | Done        | [xbar_cov_excl.el][]
+Coverage      | [FUNCTIONAL_COVERAGE_AT_100][]    | Done        |
 Issues        | [NO_ISSUES_PENDING][]             | Done        |
 Code Quality  | [NO_TOOL_WARNINGS_THROWN][]       | Done        | Waived warning due to using 'force' to connect the signal
 Integration   | [PRE_VERIFIED_SUB_MODULES_V3][]   | Waived      | prim_arbiter to be verified later
-Review        | Reviewer(s)                       |             |
-Review        | Signoff date                      |             |
+Review        | Reviewer(s)                       | Done        | @eunchan @sriyerg
+Review        | Signoff date                      | Done        | 2019-11-07
 
-[DESIGN_DELTAS_CAPTURED_IF_ANY]:{{<relref "/doc/project/checklist.md#design-deltas-captured-if-any" >}}
+[DESIGN_DELTAS_CAPTURED_V3]:    {{<relref "/doc/project/checklist.md#design-deltas-captured-v3" >}}
 [ALL_TODOS_RESOLVED]:           {{<relref "/doc/project/checklist.md#all-todos-resolved" >}}
 [X_PROP_ANALYSIS_COMPLETED]:    {{<relref "/doc/project/checklist.md#x-prop-analysis-completed" >}}
 [NIGHTLY_REGRESSION_AT_100]:    {{<relref "/doc/project/checklist.md#nightly-regression-at-100" >}}
@@ -226,3 +217,4 @@ Review        | Signoff date                      |             |
 [NO_ISSUES_PENDING]:            {{<relref "/doc/project/checklist.md#no-issues-pending" >}}
 [NO_TOOL_WARNINGS_THROWN]:      {{<relref "/doc/project/checklist.md#no-tool-warnings-thrown" >}}
 [PRE_VERIFIED_SUB_MODULES_V3]:  {{<relref "/doc/project/checklist.md#pre-verified-sub-modules-v3" >}}
+[xbar_cov_excl.el]: https://github.com/weicaiyang/opentitan/blob/6cd55ad23aac96374bfa0bec315b904c6ffbdb8f/hw/ip/tlul/dv/cov/xbar_cov_excl.el

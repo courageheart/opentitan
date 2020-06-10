@@ -27,12 +27,12 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
   rand bit [2:0]           num_of_nested_loop;
   rand int                 num_of_instr_in_loop;
   rand riscv_instr_name_t  branch_type[];
-  riscv_instr_base         loop_init_instr[];
-  riscv_instr_base         loop_update_instr[];
-  riscv_instr_base         loop_branch_instr[];
-  riscv_rand_instr         loop_branch_target_instr[];
+  riscv_instr              loop_init_instr[];
+  riscv_instr              loop_update_instr[];
+  riscv_instr              loop_branch_instr[];
+  riscv_instr              loop_branch_target_instr[];
   // Aggregated loop instruction stream
-  riscv_instr_base         loop_instr[];
+  riscv_instr         loop_instr[];
 
   constraint legal_loop_regs_c {
     solve num_of_nested_loop before loop_cnt_reg;
@@ -44,7 +44,6 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
       }
     }
     foreach (loop_limit_reg[i]) {
-      loop_limit_reg[i] != ZERO;
       foreach (cfg.reserved_regs[j]) {
         loop_limit_reg[i] != cfg.reserved_regs[j];
       }
@@ -58,34 +57,54 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
     solve num_of_nested_loop before loop_init_val;
     solve num_of_nested_loop before loop_step_val;
     solve num_of_nested_loop before loop_limit_val;
-    num_of_instr_in_loop inside {[1:200]};
+    solve loop_limit_val before loop_limit_reg;
+    solve branch_type before loop_init_val;
+    solve branch_type before loop_step_val;
+    solve branch_type before loop_limit_val;
+    num_of_instr_in_loop inside {[1:25]};
     num_of_nested_loop inside {[1:2]};
     loop_init_val.size() == num_of_nested_loop;
     loop_step_val.size() == num_of_nested_loop;
     loop_limit_val.size() == num_of_nested_loop;
     branch_type.size() == num_of_nested_loop;
+    foreach (branch_type[i]) {
+      if (!cfg.disable_compressed_instr) {
+        branch_type[i] inside {C_BNEZ, C_BEQZ, BEQ, BNE, BLTU, BLT, BGEU, BGE};
+      } else {
+        branch_type[i] inside {BEQ, BNE, BLTU, BLT, BGEU, BGE};
+      }
+    }
     foreach(loop_init_val[i]) {
+      if (branch_type[i] inside {C_BNEZ, C_BEQZ}) {
+        loop_limit_val[i] == 0;
+        loop_limit_reg[i] == ZERO;
+        loop_cnt_reg[i] inside {riscv_instr_pkg::compressed_gpr};
+      } else {
+        loop_limit_val[i] inside {[-20:20]};
+        loop_limit_reg[i] != ZERO;
+      }
+      if (branch_type[i] inside {C_BNEZ, C_BEQZ, BEQ, BNE}) {
+        ((loop_limit_val[i] - loop_init_val[i]) % loop_step_val[i] == 0) &&
+        (loop_limit_val[i] != loop_init_val[i]);
+      } else if (branch_type[i] == BGE) {
+        loop_step_val[i] < 0;
+      } else if (branch_type[i] == BGEU) {
+        loop_step_val[i] < 0;
+        loop_init_val[i] > 0;
+        // Avoid count to negative
+        loop_step_val[i] + loop_limit_val[i] > 0;
+      } else if (branch_type[i] == BLT) {
+        loop_step_val[i] > 0;
+      } else if (branch_type[i] == BLTU) {
+        loop_step_val[i] > 0;
+        loop_limit_val[i] > 0;
+      }
       loop_init_val[i]  inside {[-10:10]};
-      loop_limit_val[i] inside {[-20:20]};
       loop_step_val[i]  inside {[-10:10]};
-      loop_step_val[i] != 0;
       if(loop_init_val[i] < loop_limit_val[i]) {
-         loop_step_val[i] > 0;
+        loop_step_val[i] > 0;
       } else {
-         loop_step_val[i] < 0;
-      }
-      // Select a reasonable branch instruction to avoid inifint loop
-      if(loop_init_val[i] < 0 || (loop_limit_val[i] + loop_step_val[i]) < 0) {
-        !(branch_type[i] inside {BLTU, BGEU});
-      }
-      if(((loop_limit_val[i] - loop_init_val[i]) % loop_step_val[i] != 0) ||
-          (loop_limit_val[i] == loop_init_val[i])) {
-        !(branch_type[i] inside {BEQ, BNE});
-      }
-      if(loop_step_val[i] > 0) {
-        branch_type[i] inside {BLTU, BNE, BLT, BEQ};
-      } else {
-        branch_type[i] inside {BGEU, BNE, BGE, BEQ};
+        loop_step_val[i] < 0;
       }
     }
   }
@@ -105,9 +124,8 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
     loop_branch_target_instr = new[num_of_nested_loop];
     for(int i = 0; i < num_of_nested_loop; i++) begin
       // Instruction to init the loop counter
-      loop_init_instr[2*i] = riscv_instr_base::type_id::create("loop_init_instr");
+      loop_init_instr[2*i] = riscv_instr::get_rand_instr(.include_instr({ADDI}));
       `DV_CHECK_RANDOMIZE_WITH_FATAL(loop_init_instr[2*i],
-                                     instr_name == ADDI;
                                      rd == loop_cnt_reg[i];
                                      rs1 == ZERO;
                                      imm == loop_init_val[i];,
@@ -115,9 +133,8 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
       loop_init_instr[2*i].comment = $sformatf("init loop %0d counter", i);
 
       // Instruction to init loop limit
-      loop_init_instr[2*i+1] = riscv_instr_base::type_id::create("loop_init_instr");
+      loop_init_instr[2*i+1] = riscv_instr::get_rand_instr(.include_instr({ADDI}));
       `DV_CHECK_RANDOMIZE_WITH_FATAL(loop_init_instr[2*i+1],
-                                     instr_name == ADDI;
                                      rd == loop_limit_reg[i];
                                      rs1 == ZERO;
                                      imm == loop_limit_val[i];,
@@ -125,30 +142,34 @@ class riscv_loop_instr extends riscv_rand_instr_stream;
       loop_init_instr[2*i+1].comment = $sformatf("init loop %0d limit", i);
 
       // Branch target instruction, can be anything
-      loop_branch_target_instr[i] = riscv_rand_instr::type_id::create("loop_branch_target_instr");
-      loop_branch_target_instr[i].cfg = cfg;
-      loop_branch_target_instr[i].reserved_rd = reserved_rd;
+      loop_branch_target_instr[i] = riscv_instr::get_rand_instr(
+          .include_category({ARITHMETIC, LOGICAL, COMPARE}),
+          .exclude_instr({C_ADDI16SP}));
       `DV_CHECK_RANDOMIZE_WITH_FATAL(loop_branch_target_instr[i],
-                                     !(category inside {LOAD, STORE, BRANCH, JUMP});,
-                                     "Cannot randomize branch target instruction")
+                                     if (format == CB_FORMAT) {
+                                       !(rs1 inside {reserved_rd, cfg.reserved_regs});
+                                     }
+                                     if (has_rd) {
+                                       !(rd inside {reserved_rd, cfg.reserved_regs});
+                                     }, "Cannot randomize branch target instruction")
       loop_branch_target_instr[i].label = $sformatf("%0s_%0d_t", label, i);
 
       // Instruction to update loop counter
-      loop_update_instr[i] = riscv_instr_base::type_id::create("loop_update_instr");
+      loop_update_instr[i] = riscv_instr::get_rand_instr(.include_instr({ADDI}));
       `DV_CHECK_RANDOMIZE_WITH_FATAL(loop_update_instr[i],
-                                     instr_name == ADDI;
                                      rd == loop_cnt_reg[i];
-                                     rs1== loop_cnt_reg[i];
+                                     rs1 == loop_cnt_reg[i];
                                      imm == loop_step_val[i];,
                                      "Cannot randomize loop update instruction")
       loop_update_instr[i].comment = $sformatf("update loop %0d counter", i);
 
       // Backward branch instruction
-      loop_branch_instr[i] = riscv_instr_base::type_id::create("loop_branch_instr");
+      loop_branch_instr[i] = riscv_instr::get_rand_instr(.include_instr({branch_type[i]}));
       `DV_CHECK_RANDOMIZE_WITH_FATAL(loop_branch_instr[i],
-                                     instr_name == branch_type[i];
                                      rs1 == loop_cnt_reg[i];
-                                     rs2 == loop_limit_reg[i];,
+                                     if (!(branch_type[i] inside {C_BEQZ, C_BNEZ})) {
+                                       rs2 == loop_limit_reg[i];
+                                     },
                                      "Cannot randomize backward branch instruction")
       loop_branch_instr[i].comment = $sformatf("branch for loop %0d", i);
       loop_branch_instr[i].imm_str = loop_branch_target_instr[i].label;

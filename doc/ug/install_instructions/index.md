@@ -38,7 +38,7 @@ $ sudo chown $(id -un) /tools
 
 ### Clone repository
 
-If you intend to contribute back to OpenTitan you will want your own fork of the repository on GitHub and to work using that, see the [notes for using GitHub]({{< relref "github_notes.md" >}}).
+If you intend to contribute back to OpenTitan you will want your own fork of the repository on GitHub and to work using that, see the [notes for using GitHub]({{< relref "doc/ug/github_notes.md" >}}).
 Otherwise make a simple clone of the main OpenTitan repository.
 
 ```console
@@ -55,12 +55,7 @@ A number of software packages from the distribution's package manager is require
 All installation instructions below are for Ubuntu 16.04.
 Adjust as necessary for other Linux distributions.
 
-```console
-$ sudo apt-get install git python3 python3-pip python3-setuptools \
-    build-essential autoconf flex bison ninja-build pkgconf \
-    srecord zlib1g-dev libftdi1-dev libftdi1-2 libssl-dev \
-    libusb-1.0-0-dev libtool
-```
+{{< apt_cmd >}}
 
 Some tools in this repository are written in Python 3 and require Python dependencies to be installed through `pip`.
 (Note that the `diff_generated_util_output.py` tool works better with Python 3.6 or later where the order is preserved in `dict` types, earlier versions of Python will show spurious differences caused by things being reordered.)
@@ -98,7 +93,7 @@ $ ./util/get-toolchain.py
 
 1. Install all build prerequisites listed [in the documentation](https://github.com/riscv/riscv-gnu-toolchain/#prerequisites).
 
-2. Build the toolchain
+2. Build the toolchain (this should be done outside the `$REPO_TOP` directory):
     ```console
     $ git clone --recursive https://github.com/riscv/riscv-gnu-toolchain
     $ cd riscv-gnu-toolchain
@@ -106,7 +101,35 @@ $ ./util/get-toolchain.py
     $ make
     ```
 
-The `make` command installs the toolchain to `/tools/riscv`, no additional `make install` step is needed.
+    The `make` command installs the toolchain to `/tools/riscv`, no additional `make install` step is needed.
+
+3. Write a [meson toolchain configuration file](https://mesonbuild.com/Cross-compilation.html#defining-the-environment) for your toolchain.
+   It should look like the following (though your paths may be different):
+    ```ini
+    [binaries]
+    c = '/tools/riscv/bin/riscv32-unknown-elf-gcc'
+    cpp = '/tools/riscv/bin/riscv32-unknown-elf-g++'
+    ar = '/tools/riscv/bin/riscv32-unknown-elf-ar'
+    ld = '/tools/riscv/bin/riscv32-unknown-elf-ld'
+    objdump = '/tools/riscv/bin/riscv32-unknown-elf-objdump'
+    objcopy = '/tools/riscv/bin/riscv32-unknown-elf-objcopy'
+    strip = '/tools/riscv/bin/riscv32-unknown-elf-strip'
+
+    [properties]
+    needs_exe_wrapper = true
+    has_function_printf = false
+    c_args = ['-march=rv32imc', '-mabi=ilp32', '-mcmodel=medany']
+    cpp_args = ['-march=rv32imc', '-mabi=ilp32', '-mcmodel=medany']
+
+    [host_machine]
+    system = 'bare metal'
+    cpu_family = 'riscv32'
+    cpu = 'ibex'
+    endian = 'little'
+    ```
+
+    You will need to pass the path to this file to `./meson_init.sh` using the `-t FILE` option.
+
 
 ### OpenOCD
 
@@ -115,6 +138,8 @@ It also provides a GDB server which is an "intermediate" when debugging software
 
 Unfortunately the upstream sources of OpenOCD do not contain all necessary patches to support RISC-V, and hence typical distribution packages don't work.
 We therefore need to build OpenOCD from source from a forked repository.
+
+To build OpenOCD (this should be done outside the `$REPO_TOP` directory):
 
 ```console
 $ git clone https://github.com/riscv/riscv-openocd.git
@@ -134,10 +159,10 @@ We recommend compiling Verilator from source, as outlined here.
 
 ### Install Verilator
 
-Then you can fetch, build and install Verilator itself.
+Then you can fetch, build and install Verilator itself (this should be done outside the `$REPO_TOP` directory).
 
 ```console
-$ export VERILATOR_VERSION=4.010
+$ export VERILATOR_VERSION={{< tool_version "verilator" >}}
 
 $ git clone http://git.veripool.org/git/verilator
 $ cd verilator
@@ -150,6 +175,34 @@ $ make install
 ```
 
 After installation you need to add `/tools/verilator/$VERILATOR_VERSION/bin` to your `PATH` environment variable.
+
+## Verible
+
+Verible is an open source  SystemVerilog style linter and formatting tool.
+The style linter is relatively mature and we use it as part of our [RTL design flow]({{< relref "doc/ug/design" >}}).
+The formatter is still under active development, and hence its usage is more experimental in OpenTitan.
+
+You can download and build Verible from scratch as explained on the [Verible GitHub page](https://github.com/google/verible/).
+But since this requires the Bazel build system the recommendation is to download and install a pre-built binary as described below.
+
+### Install Verible
+
+Go to [this page](https://github.com/google/verible/releases) and download the correct binary archive for your machine.
+The example below is for Ubuntu-16.04:
+
+```console
+$ export VERIBLE_VERSION={{< tool_version "verible" >}}
+
+$ wget https://github.com/google/verible/releases/download/v${VERIBLE_VERSION}/verible-v${VERIBLE_VERSION}-Ubuntu-16.04-xenial-x86_64.tar.gz
+$ tar -xf verible-v${VERIBLE_VERSION}-Ubuntu-16.04-xenial-x86_64.tar.gz
+
+$ sudo mkdir -p /tools/verible/${VERIBLE_VERSION}/
+$ sudo mv verible-v${VERIBLE_VERSION}/* /tools/verible/${VERIBLE_VERSION}/
+```
+
+After installation you need to add `/tools/verible/$VERIBLE_VERSION/bin` to your `PATH` environment variable.
+
+Note that we currently use version {{< tool_version "verible" >}}, but it is expected that this version is going to be updated frequently, since the tool is under active develpment.
 
 ## Xilinx Vivado
 
@@ -233,7 +286,7 @@ To get started faster we use the web installer in the following.
 
    ![Vivado installation step 6](img/install_vivado/step6.png)
 
-10. Double-check the installation summary and click on "Next" to start the installation process.
+10. Double-check the installation summary and click on "Install" to start the installation process.
 
    ![Vivado installation step 7](img/install_vivado/step7.png)
 

@@ -12,12 +12,7 @@
   }
 
   h1 {
-    font-size: 2.5em;
-  }
-
-  h2 {
     padding-top: 0.5em;
-    border-top: 1px solid;
     font-family: 'Livvic', sans-serif;
     font-size: 2.5em;
     line-height: 1.28;
@@ -30,10 +25,23 @@
     }
   }
 
-  h3 {
+  h1.title {
+    font-size: 2.5em;
+    border: none !important;
+    font-family: 'Ubuntu', sans-serif !important;
+    font-weight: bold !important;
+  }
+
+  h2 {
     font-size: 1.375em;
     font-weight: 700;
     margin-bottom: 0.6363em;
+  }
+
+  h3 {
+    font-size: 1.1em;
+    font-weight: 700;
+    margin-bottom: 0.5em;
   }
 
   p {
@@ -67,8 +75,6 @@
     border-collapse: collapse;
 
     td, th {
-      color: $medium-purple;
-      color: var(--text-second);
       vertical-align: top;
       border: 1px solid var(--text-second);
       padding: 0.5em;
@@ -76,14 +82,11 @@
 
     th {
       font-weight: bold;
-      color: $dark-purple;
-      color: var(--text-color);
     }
   }
 
   pre {
     width: 100%;
-    max-width: 80ch;
     overflow-x: auto;
     display: block;
     white-space: pre-wrap;
@@ -91,8 +94,6 @@
   }
 
   ul, ol {
-    color: $medium-purple;
-    color: var(--text-second);
     padding-left: 1em;
 
     > li + li {
@@ -101,7 +102,6 @@
 
     ul,
     ol {
-      font-size: 0.875em;
       margin-top: 0.5em;
     }
   }
@@ -123,4 +123,37 @@
 table.regdef {
   border: 2px solid $dark-purple;
   border: 2px solid var(--text-color);
+}
+
+// Dashboard design
+table.hw-project-dashboard {
+    td {
+        vertical-align: middle;
+        &.hw-stage {
+            text-align: center;
+        }
+    }
+}
+
+/* Callouts */
+.bd-callout {
+  padding: 1.25rem;
+  margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #eee;
+  border-left-color: rgb(238, 238, 238);
+  border-left-width: 1px;
+  border-left-width: .25rem;
+  border-radius: .25rem;
+}
+
+.bd-callout h5 {
+  font-size: 1.25em;
+  margin:0;
+}
+.bd-callout-warning {
+  border-left-color: #f0ad4e;
+}
+.bd-callout p:last-child {
+  margin-bottom: 0;
 }

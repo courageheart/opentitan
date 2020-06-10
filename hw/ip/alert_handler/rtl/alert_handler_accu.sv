@@ -10,23 +10,29 @@
 // does not wrap around.
 //
 
-module alert_handler_accu (
-  input                                   clk_i,
-  input                                   rst_ni,
-  input                                   clr_i,        // clear the accumulator
-  input                                   class_trig_i, // increments the accu
-  input        [alert_pkg::AccuCntDw-1:0] thresh_i,     // escalation trigger threshold
-  output logic [alert_pkg::AccuCntDw-1:0] accu_cnt_o,   // output of current accu value
-  output logic                            accu_trig_o   // escalation trigger output
+`include "prim_assert.sv"
+
+module alert_handler_accu import alert_pkg::*; (
+  input                        clk_i,
+  input                        rst_ni,
+  input                        class_en_i,   // class enable
+  input                        clr_i,        // clear the accumulator
+  input                        class_trig_i, // increments the accu
+  input        [AccuCntDw-1:0] thresh_i,     // escalation trigger threshold
+  output logic [AccuCntDw-1:0] accu_cnt_o,   // output of current accu value
+  output logic                 accu_trig_o   // escalation trigger output
 );
 
-  logic [alert_pkg::AccuCntDw-1:0] accu_d, accu_q;
+  logic trig_gated;
+  logic [AccuCntDw-1:0] accu_d, accu_q;
 
-  assign accu_d = (clr_i)                      ? '0            : // clear
-                  (class_trig_i && !(&accu_q)) ? accu_q + 1'b1 : // saturate counter at maximum
-                                                 accu_q;
+  assign trig_gated = class_trig_i & class_en_i;
 
-  assign accu_trig_o = (accu_q >= thresh_i) & class_trig_i;
+  assign accu_d = (clr_i)                    ? '0            : // clear
+                  (trig_gated && !(&accu_q)) ? accu_q + 1'b1 : // saturate counter at maximum
+                                               accu_q;
+
+  assign accu_trig_o = (accu_q >= thresh_i) & trig_gated;
 
   assign accu_cnt_o = accu_q;
 
@@ -37,5 +43,13 @@ module alert_handler_accu (
       accu_q <= accu_d;
     end
   end
+
+
+  ////////////////
+  // Assertions //
+  ////////////////
+
+  `ASSERT(DisabledNoTrigFwd_A, !class_en_i |-> !accu_trig_o)
+  `ASSERT(DisabledNoTrigBkwd_A, accu_trig_o |-> class_en_i)
 
 endmodule : alert_handler_accu

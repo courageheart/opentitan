@@ -4,7 +4,7 @@
 //
 # ALERT_HANDLER register template
 #
-# Parameter (given by python tool)
+# Parameter (given by Python tool)
 #  - n_alerts:    Number of alert sources
 #  - esc_cnt_dw:  Width of escalation counter
 #  - accu_cnt_dw: Width of accumulator
@@ -17,7 +17,7 @@ chars = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 %>
 {
   name: "ALERT_HANDLER",
-  clock_primary: "clk_fixed",
+  clock_primary: "clk_i",
   bus_device: "tlul",
   regwidth: "32",
 ##############################################################################
@@ -99,7 +99,7 @@ chars = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
 # interrupt registers for the classes
   interrupt_list: [
 % for i in range(n_classes):
-    { name: "CLASS${chars[i]}",
+    { name: "class${chars[i].lower()}",
       desc: '''
             Interrupt state bit of Class ${chars[i]}. Set by HW in case an alert within this class triggered. Defaults true, write one to clear.
             ''',
@@ -317,7 +317,7 @@ chars = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
         { bits: "11:10",
           name: "MAP_E2",
           resval: 2,
-          desc: "Determine sin which escalation phase escalation signal 2 shall be asserted.",
+          desc: "Determines in which escalation phase escalation signal 2 shall be asserted.",
         }
         { bits: "13:12",
           name: "MAP_E3",
